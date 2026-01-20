@@ -27,15 +27,73 @@ struct GitClient {
     }
 
     nonisolated func worktrees(for repoRoot: URL) async throws -> [Worktree] {
-        let output = try await runGit(arguments: ["-C", repoRoot.path(percentEncoded: false), "worktree", "list", "--porcelain"])
-        return try GitWorktreeParser.parse(output, repoRoot: repoRoot)
+        let baseDirectory = wtBaseDirectory(for: repoRoot)
+        let output = try await runWtList(repoRoot: repoRoot, baseDirectory: baseDirectory)
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return []
+        }
+        let data = Data(trimmed.utf8)
+        let entries = try JSONDecoder().decode([GitWtWorktreeEntry].self, from: data)
+        return entries.map { entry in
+            let worktreeURL = URL(fileURLWithPath: entry.path).standardizedFileURL
+            let detail = Self.relativePath(from: baseDirectory, to: worktreeURL)
+            let id = worktreeURL.path(percentEncoded: false)
+            return Worktree(id: id, name: entry.branch, detail: detail, workingDirectory: worktreeURL)
+        }
     }
 
     nonisolated private func runGit(arguments: [String]) async throws -> String {
+        let env = URL(fileURLWithPath: "/usr/bin/env")
+        return try await runProcess(
+            executableURL: env,
+            arguments: ["git"] + arguments,
+            currentDirectoryURL: nil
+        )
+    }
+
+    nonisolated private func runWtList(repoRoot: URL, baseDirectory: URL) async throws -> String {
+        let wtURL = try wtScriptURL()
+        let arguments = ["ls", "--json", "--base", baseDirectory.path(percentEncoded: false)]
+        print(
+            "\(wtURL.lastPathComponent) \(arguments.joined(separator: " "))"
+        )
+        let output = try await runProcess(
+            executableURL: wtURL,
+            arguments: arguments,
+            currentDirectoryURL: repoRoot
+        )
+        print(output)
+        print()
+        return output
+    }
+
+    nonisolated private func wtScriptURL() throws -> URL {
+        if let url = Bundle.main.url(forResource: "wt", withExtension: nil, subdirectory: "git-wt") {
+            return url
+        }
+        throw GitClientError.commandFailed(command: "wt ls --json", message: "Bundled wt script not found")
+    }
+
+    nonisolated private func wtBaseDirectory(for repoRoot: URL) -> URL {
+        let repoName = repoRoot.lastPathComponent
+        let fallback = repoRoot.path(percentEncoded: false).replacingOccurrences(of: "/", with: "_")
+        let name = repoName.isEmpty ? fallback : repoName
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".supacode/repos", isDirectory: true)
+            .appendingPathComponent(name, isDirectory: true)
+    }
+
+    nonisolated private func runProcess(
+        executableURL: URL,
+        arguments: [String],
+        currentDirectoryURL: URL?
+    ) async throws -> String {
         try await Task.detached {
             let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-            process.arguments = ["git"] + arguments
+            process.executableURL = executableURL
+            process.arguments = arguments
+            process.currentDirectoryURL = currentDirectoryURL
             let outputPipe = Pipe()
             let errorPipe = Pipe()
             process.standardOutput = outputPipe
@@ -47,67 +105,12 @@ struct GitClient {
             let output = String(decoding: outputData, as: UTF8.self)
             let errorOutput = String(decoding: errorData, as: UTF8.self)
             if process.terminationStatus != 0 {
-                let command = (["git"] + arguments).joined(separator: " ")
+                let command = ([executableURL.path(percentEncoded: false)] + arguments).joined(separator: " ")
                 let message = errorOutput.trimmingCharacters(in: .whitespacesAndNewlines)
                 throw GitClientError.commandFailed(command: command, message: message)
             }
             return output.trimmingCharacters(in: .whitespacesAndNewlines)
         }.value
-    }
-}
-
-struct GitWorktreeParser {
-    nonisolated static func parse(_ output: String, repoRoot: URL) throws -> [Worktree] {
-        let lines = output.components(separatedBy: .newlines)
-        var worktrees: [Worktree] = []
-        var currentPath: String?
-        var currentBranch: String?
-        var isDetached = false
-
-        func flush() {
-            guard let path = currentPath else { return }
-            let worktreeURL = URL(fileURLWithPath: path).standardizedFileURL
-            let branchName: String
-            if isDetached {
-                branchName = "detached"
-            } else if let currentBranch {
-                if currentBranch.hasPrefix("refs/heads/") {
-                    branchName = currentBranch.replacing("refs/heads/", with: "")
-                } else {
-                    branchName = currentBranch
-                }
-            } else {
-                branchName = "unknown"
-            }
-            let detail = relativePath(from: repoRoot, to: worktreeURL)
-            let id = worktreeURL.path(percentEncoded: false)
-            worktrees.append(Worktree(id: id, name: branchName, detail: detail, workingDirectory: worktreeURL))
-        }
-
-        for line in lines {
-            if line.isEmpty {
-                flush()
-                currentPath = nil
-                currentBranch = nil
-                isDetached = false
-                continue
-            }
-            if line.hasPrefix("worktree ") {
-                currentPath = String(line.dropFirst("worktree ".count))
-                continue
-            }
-            if line.hasPrefix("branch ") {
-                currentBranch = String(line.dropFirst("branch ".count))
-                isDetached = false
-                continue
-            }
-            if line == "detached" {
-                isDetached = true
-            }
-        }
-
-        flush()
-        return worktrees
     }
 
     nonisolated private static func relativePath(from base: URL, to target: URL) -> String {
@@ -129,4 +132,10 @@ struct GitWorktreeParser {
         }
         return result.joined(separator: "/")
     }
+}
+
+struct GitWtWorktreeEntry: Decodable {
+    let branch: String
+    let path: String
+    let head: String
 }
