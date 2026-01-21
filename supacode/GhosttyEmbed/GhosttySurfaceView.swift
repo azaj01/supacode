@@ -3,24 +3,33 @@ import GhosttyKit
 
 final class GhosttySurfaceView: NSView {
   private let runtime: GhosttyRuntime
+  let bridge: GhosttySurfaceBridge
   private(set) var surface: ghostty_surface_t?
   private let workingDirectoryCString: UnsafeMutablePointer<CChar>?
+  private let initialInputCString: UnsafeMutablePointer<CChar>?
   private var trackingArea: NSTrackingArea?
   private var lastBackingSize: CGSize = .zero
   private var pendingFocus = false
 
   override var acceptsFirstResponder: Bool { true }
 
-  init(runtime: GhosttyRuntime, workingDirectory: URL?) {
+  init(runtime: GhosttyRuntime, workingDirectory: URL?, initialInput: String? = nil) {
     self.runtime = runtime
+    self.bridge = GhosttySurfaceBridge()
     if let workingDirectory {
       let path = workingDirectory.path(percentEncoded: false)
       workingDirectoryCString = path.withCString { strdup($0) }
     } else {
       workingDirectoryCString = nil
     }
+    if let initialInput {
+      initialInputCString = initialInput.withCString { strdup($0) }
+    } else {
+      initialInputCString = nil
+    }
     super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
     wantsLayer = true
+    bridge.surfaceView = self
     createSurface()
   }
 
@@ -33,12 +42,16 @@ final class GhosttySurfaceView: NSView {
     if let workingDirectoryCString {
       free(workingDirectoryCString)
     }
+    if let initialInputCString {
+      free(initialInputCString)
+    }
   }
 
   func closeSurface() {
     if let surface {
       ghostty_surface_free(surface)
       self.surface = nil
+      bridge.surface = nil
     }
   }
 
@@ -203,7 +216,7 @@ final class GhosttySurfaceView: NSView {
   private func createSurface() {
     guard let app = runtime.app else { return }
     var config = ghostty_surface_config_new()
-    config.userdata = Unmanaged.passUnretained(self).toOpaque()
+    config.userdata = Unmanaged.passUnretained(bridge).toOpaque()
     config.platform_tag = GHOSTTY_PLATFORM_MACOS
     config.platform = ghostty_platform_u(
       macos: ghostty_platform_macos_s(
@@ -211,8 +224,10 @@ final class GhosttySurfaceView: NSView {
       ))
     config.scale_factor = backingScaleFactor()
     config.working_directory = workingDirectoryCString.map { UnsafePointer($0) }
+    config.initial_input = initialInputCString.map { UnsafePointer($0) }
     config.context = GHOSTTY_SURFACE_CONTEXT_WINDOW
     surface = ghostty_surface_new(app, &config)
+    bridge.surface = surface
     updateSurfaceSize()
   }
 

@@ -52,7 +52,7 @@ final class WorktreeTerminalState: BonsplitDelegate {
       return nil
     }
     controller.selectTab(tabId)
-    surfaceView(for: tabId).requestFocus()
+    surfaceView(for: tabId, initialInput: "echo \(title)\n").requestFocus()
     return tabId
   }
 
@@ -70,13 +70,26 @@ final class WorktreeTerminalState: BonsplitDelegate {
     return closed
   }
 
-  func surfaceView(for tabId: TabID) -> GhosttySurfaceView {
+  func surfaceView(for tabId: TabID, initialInput: String? = nil) -> GhosttySurfaceView {
     if let existing = surfaces[tabId] {
       return existing
     }
-    let view = GhosttySurfaceView(runtime: runtime, workingDirectory: worktree.workingDirectory)
+    let resolvedInput = initialInput ?? defaultInitialInput(for: tabId)
+    let view = GhosttySurfaceView(
+      runtime: runtime,
+      workingDirectory: worktree.workingDirectory,
+      initialInput: resolvedInput
+    )
+    view.bridge.onTitleChange = { [weak controller = controller] title in
+      controller?.updateTab(tabId, title: title, icon: "terminal")
+    }
     surfaces[tabId] = view
     return view
+  }
+
+  private func defaultInitialInput(for tabId: TabID) -> String? {
+    guard let title = controller.tab(tabId)?.title else { return nil }
+    return "echo \(title)\n"
   }
 
   func closeAllSurfaces() {

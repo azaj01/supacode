@@ -99,9 +99,14 @@ final class GhosttyRuntime {
     return Unmanaged<GhosttyRuntime>.fromOpaque(userdata).takeUnretainedValue()
   }
 
-  private static func surfaceView(from userdata: UnsafeMutableRawPointer?) -> GhosttySurfaceView? {
+  private static func surfaceBridge(fromUserdata userdata: UnsafeMutableRawPointer?) -> GhosttySurfaceBridge? {
     guard let userdata else { return nil }
-    return Unmanaged<GhosttySurfaceView>.fromOpaque(userdata).takeUnretainedValue()
+    return Unmanaged<GhosttySurfaceBridge>.fromOpaque(userdata).takeUnretainedValue()
+  }
+
+  private static func surfaceBridge(fromSurface surface: ghostty_surface_t?) -> GhosttySurfaceBridge? {
+    guard let surface, let userdata = ghostty_surface_userdata(surface) else { return nil }
+    return Unmanaged<GhosttySurfaceBridge>.fromOpaque(userdata).takeUnretainedValue()
   }
 
   private static func wakeup(_ userdata: UnsafeMutableRawPointer?) {
@@ -114,6 +119,15 @@ final class GhosttyRuntime {
   private static func action(
     _ app: ghostty_app_t, target: ghostty_target_s, action: ghostty_action_s
   ) -> Bool {
+    guard target.tag == GHOSTTY_TARGET_SURFACE else { return false }
+    guard let surface = target.target.surface else { return false }
+    guard let bridge = surfaceBridge(fromSurface: surface) else { return false }
+    if Thread.isMainThread {
+      return bridge.handleAction(target: target, action: action)
+    }
+    Task { @MainActor in
+      _ = bridge.handleAction(target: target, action: action)
+    }
     return false
   }
 
@@ -122,7 +136,7 @@ final class GhosttyRuntime {
     location: ghostty_clipboard_e,
     state: UnsafeMutableRawPointer?
   ) {
-    guard let surfaceView = surfaceView(from: userdata), let surface = surfaceView.surface else {
+    guard let bridge = surfaceBridge(fromUserdata: userdata), let surface = bridge.surface else {
       return
     }
     let value = NSPasteboard.ghostty(location)?.getOpinionatedStringContents() ?? ""
@@ -139,7 +153,7 @@ final class GhosttyRuntime {
     state: UnsafeMutableRawPointer?,
     request: ghostty_clipboard_request_e
   ) {
-    guard let surfaceView = surfaceView(from: userdata), let surface = surfaceView.surface else {
+    guard let bridge = surfaceBridge(fromUserdata: userdata), let surface = bridge.surface else {
       return
     }
     guard let string else { return }
@@ -181,8 +195,8 @@ final class GhosttyRuntime {
   }
 
   private static func closeSurface(_ userdata: UnsafeMutableRawPointer?, processAlive: Bool) {
-    guard let surfaceView = surfaceView(from: userdata) else { return }
-    surfaceView.closeSurface()
+    guard let bridge = surfaceBridge(fromUserdata: userdata) else { return }
+    bridge.closeSurface()
   }
 }
 
