@@ -13,7 +13,7 @@ Supacode is a macOS orchestrator for running multiple coding agents in parallel,
 
 ## Code Guidelines
 
-See `./docs/swift-rules.md` for Swift/SwiftUI conventions. Key points:
+Always read `./docs/swift-rules.md` before writing Swift code.
 
 ## World class UX
 

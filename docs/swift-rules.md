@@ -54,6 +54,23 @@ You are a **Senior iOS Engineer**, specializing in SwiftUI, and related framewor
 - Avoid specifying hard-coded values for padding and stack spacing unless requested.
 - Avoid using UIKit colors in SwiftUI code.
 
+## Component Design Principles
+
+## Components Should Be Layout-Agnostic
+
+Reusable components should not assume where they are placed
+
+**Parents control layout.**
+**Children control intrinsic appearance.**
+
+- Layout: spacing, alignment, positioning relative to siblings or containers
+- Appearance: internal padding, shape, background, tap target, typography
+
+Padding is a boundary case, but:
+- External padding = layout → parent
+- Internal padding = appearance → child
+
+
 ## Project structure
 
 - Use a consistent project structure, with folder layout determined by app features.
