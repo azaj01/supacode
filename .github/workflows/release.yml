@@ -47,9 +47,9 @@ jobs:
           security list-keychains -s build.keychain
       - run: make build-ghostty-xcframework
       - run: |
-          xcodebuild -project supacode.xcodeproj -scheme supacode -configuration Release -archivePath build/supacode.xcarchive archive CODE_SIGN_IDENTITY="$DEVELOPER_ID_IDENTITY"
+          xcodebuild -project supacode.xcodeproj -scheme supacode -configuration Release -archivePath build/supacode.xcarchive archive CODE_SIGN_IDENTITY="$DEVELOPER_ID_IDENTITY" OTHER_CODE_SIGN_FLAGS="--timestamp"
       - run: |
-          cat > build/ExportOptions.plist <<EOF2
+          cat > build/ExportOptions.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -64,7 +64,7 @@ jobs:
             <string>$APPLE_TEAM_ID</string>
           </dict>
           </plist>
-          EOF2
+          EOF
           xcodebuild -exportArchive -archivePath build/supacode.xcarchive -exportPath build/export -exportOptionsPlist build/ExportOptions.plist
       - name: Notarize and staple
         run: |
