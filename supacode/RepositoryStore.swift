@@ -16,6 +16,7 @@ final class RepositoryStore {
   var openError: OpenRepositoryError?
   var createWorktreeError: CreateWorktreeError?
   var removeWorktreeError: RemoveWorktreeError?
+  var loadError: LoadRepositoryError?
   var pendingWorktrees: [PendingWorktree] = []
   var deletingWorktreeIDs: Set<Worktree.ID> = []
   private(set) var pinnedWorktreeIDs: [Worktree.ID] = []
@@ -31,21 +32,27 @@ final class RepositoryStore {
   }
 
   init(userDefaults: UserDefaults = .standard, gitClient: GitClient = .init()) {
+    print("[RepositoryStore] init")
     self.userDefaults = userDefaults
     self.gitClient = gitClient
     pinnedWorktreeIDs = loadPinnedWorktreeIDs()
+    print("[RepositoryStore] pinnedWorktreeIDs: \(pinnedWorktreeIDs)")
     Task {
       await loadPersistedRepositories()
     }
   }
 
   func loadPersistedRepositories() async {
+    print("[RepositoryStore] loadPersistedRepositories started")
     let rootPaths = uniqueRootPaths(loadRootPaths())
+    print("[RepositoryStore] rootPaths from UserDefaults: \(rootPaths)")
     let roots = rootPaths.map { URL(fileURLWithPath: $0) }
     let loaded = await loadRepositories(for: roots)
+    print("[RepositoryStore] loaded \(loaded.count) repositories")
     applyRepositories(loaded)
     let persistedRoots = loaded.map { $0.rootURL.path(percentEncoded: false) }
     persistRootPaths(persistedRoots)
+    print("[RepositoryStore] loadPersistedRepositories completed")
   }
 
   func openRepositories(at urls: [URL]) async {
@@ -405,6 +412,10 @@ final class RepositoryStore {
   }
 
   private func applyRepositories(_ loaded: [Repository], animated: Bool = false) {
+    print("[RepositoryStore] applyRepositories: \(loaded.count) repositories")
+    for repo in loaded {
+      print("[RepositoryStore]   - \(repo.name): \(repo.worktrees.count) worktrees")
+    }
     if animated {
       withAnimation {
         repositories = loaded
@@ -416,8 +427,10 @@ final class RepositoryStore {
     let repositoryIDs = Set(loaded.map(\.id))
     pendingWorktrees = pendingWorktrees.filter { repositoryIDs.contains($0.repositoryID) }
     if !isSelectionValid(selectedWorktreeID) {
+      print("[RepositoryStore] selectedWorktreeID \(String(describing: selectedWorktreeID)) is invalid, clearing")
       selectedWorktreeID = nil
     }
+    print("[RepositoryStore] applyRepositories done, repositories.count = \(repositories.count)")
   }
 
   private func prunePinnedWorktreeIDs(using repositories: [Repository]) {
@@ -454,10 +467,13 @@ final class RepositoryStore {
   }
 
   private func loadRepositories(for roots: [URL]) async -> [Repository] {
+    print("[RepositoryStore] loadRepositories for \(roots.count) roots")
     var loaded: [Repository] = []
     for root in roots {
+      print("[RepositoryStore] loading root: \(root.path(percentEncoded: false))")
       do {
         let worktrees = try await gitClient.worktrees(for: root)
+        print("[RepositoryStore] found \(worktrees.count) worktrees in \(root.lastPathComponent)")
         let name = repositoryName(from: root)
         let githubOwner = await gitClient.githubOwner(for: root)
         let repository = Repository(
@@ -469,7 +485,14 @@ final class RepositoryStore {
           worktrees: worktrees
         )
         loaded.append(repository)
+        print("[RepositoryStore] loaded repository: \(name) with \(worktrees.count) worktrees")
       } catch {
+        print("[RepositoryStore] ERROR loading \(root.path(percentEncoded: false)): \(error)")
+        loadError = LoadRepositoryError(
+          id: UUID(),
+          title: "Failed to load repository",
+          message: error.localizedDescription
+        )
         continue
       }
     }

@@ -112,6 +112,13 @@ struct ContentView: View {
         dismissButton: .default(Text("OK"))
       )
     }
+    .alert(item: $repositoryStore.loadError) { error in
+      Alert(
+        title: Text(error.title),
+        message: Text(error.message),
+        dismissButton: .default(Text("OK"))
+      )
+    }
     .focusedSceneValue(\.toggleSidebarAction, toggleSidebar)
   }
 
