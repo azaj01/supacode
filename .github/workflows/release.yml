@@ -66,11 +66,31 @@ jobs:
           </plist>
           EOF2
           xcodebuild -exportArchive -archivePath build/supacode.xcarchive -exportPath build/export -exportOptionsPlist build/ExportOptions.plist
-      - run: |
+      - name: Notarize and staple
+        run: |
           APP_PATH="$(find build/export -name "supacode.app" -maxdepth 3 -print -quit)"
           NOTARY_ZIP=build/supacode.notary.zip
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$NOTARY_ZIP"
-          xcrun notarytool submit "$NOTARY_ZIP" --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+
+          for attempt in 1 2 3; do
+            echo "Notarization attempt $attempt..."
+            OUTPUT=$(xcrun notarytool submit "$NOTARY_ZIP" --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait --output-format json 2>&1) && break
+            echo "Attempt $attempt failed, retrying in 30s..."
+            sleep 30
+          done
+
+          SUBMISSION_ID=$(echo "$OUTPUT" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+          STATUS=$(echo "$OUTPUT" | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4)
+          echo "Submission ID: $SUBMISSION_ID"
+          echo "Status: $STATUS"
+
+          if [ "$STATUS" != "Accepted" ]; then
+            echo "::error::Notarization failed with status: $STATUS"
+            echo "Fetching notarization log..."
+            xcrun notarytool log "$SUBMISSION_ID" --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID"
+            exit 1
+          fi
+
           xcrun stapler staple "$APP_PATH"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" build/supacode.app.zip
           VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP_PATH/Contents/Info.plist")
