@@ -141,7 +141,7 @@ jobs:
         run: |
           APP_PATH="$(find build/export -name "supacode.app" -maxdepth 3 -print -quit)"
           DMG_STAGE=build/dmg-stage
-          DMG_NAME="supacode-$VERSION.dmg"
+          DMG_NAME="supacode.dmg"
           DMG_PATH="build/$DMG_NAME"
           rm -rf "$DMG_STAGE"
           mkdir -p "$DMG_STAGE"
