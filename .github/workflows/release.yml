@@ -18,7 +18,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       RELEASE_REPO_MAIN: supabitapp/supacode
-      RELEASE_REPO_SH: supabit/supacode-sh
+      RELEASE_REPO_SH: supabitapp/supacode-sh
       SUPACODE_SH_RELEASE_TOKEN: ${{ secrets.SUPACODE_SH_RELEASE_TOKEN }}
       SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
       DEVELOPER_ID_CERT_P12: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
