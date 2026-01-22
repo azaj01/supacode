@@ -160,56 +160,58 @@ private struct WorktreeDetailView: View {
     .navigationTitle(selectedWorktree?.name ?? loadingInfo?.name ?? "Supacode")
     .toolbar {
       let isOpenDisabled = selectedWorktree == nil || loadingInfo != nil
-      let openActionIcon = openActionSelection.appIcon
       let openActionHelpText =
         "\(openActionSelection.title) (\(AppShortcuts.openFinder.display))"
-      ToolbarItemGroup(placement: .primaryAction) {
-        Menu {
-          ForEach(OpenWorktreeAction.allCases) { action in
-            let isDefault = action == openActionSelection
-            Button {
-              setOpenActionSelection(action)
-              performOpenAction(action)
-            } label: {
-              if let appIcon = action.appIcon {
-                Label {
-                  Text(action.title)
-                } icon: {
-                  Image(nsImage: appIcon)
-                    .accessibilityHidden(true)
+      if !isOpenDisabled {
+        ToolbarItemGroup(placement: .primaryAction) {
+          Menu {
+            ForEach(OpenWorktreeAction.allCases) { action in
+              let isDefault = action == openActionSelection
+              Button {
+                setOpenActionSelection(action)
+                performOpenAction(action)
+              } label: {
+                if let appIcon = action.appIcon {
+                  Label {
+                    Text(action.title)
+                  } icon: {
+                    Image(nsImage: appIcon)
+                      .accessibilityHidden(true)
+                  }
+                } else {
+                  Label(action.title, systemImage: "app")
                 }
+              }
+              .modifier(
+                OpenActionShortcutModifier(
+                  shortcut: isDefault ? AppShortcuts.openFinder : nil
+                )
+              )
+              .help(
+                isDefault
+                  ? "\(action.title) (\(AppShortcuts.openFinder.display))"
+                  : action.title
+              )
+            }
+          } label: {
+            Label {
+              Text("Open")
+            } icon: {
+              if let appIcon = openActionSelection.appIcon {
+                Image(nsImage: appIcon)
+                  .resizable()
+                  .scaledToFit()
+                  .accessibilityHidden(true)
               } else {
-                Label(action.title, systemImage: "app")
+                Image(systemName: "folder")
+                  .resizable()
+                  .scaledToFit()
+                  .accessibilityHidden(true)
               }
             }
-            .modifier(
-              OpenActionShortcutModifier(
-                shortcut: isDefault ? AppShortcuts.openFinder : nil
-              )
-            )
-            .help(
-              isDefault
-                ? "\(action.title) (\(AppShortcuts.openFinder.display))"
-                : action.title
-            )
-            .disabled(isOpenDisabled)
           }
-        } label: {
-          Label {
-            Text("Open")
-          } icon: {
-            if let openActionIcon {
-              Image(nsImage: openActionIcon)
-                .accessibilityHidden(true)
-            } else {
-              Image(systemName: "app")
-                .accessibilityHidden(true)
-            }
-          }
+          .help(openActionHelpText)
         }
-        .labelStyle(.iconOnly)
-        .help(openActionHelpText)
-        .disabled(isOpenDisabled)
       }
     }
     .alert(item: $openActionError) { error in
