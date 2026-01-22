@@ -26,7 +26,7 @@ private enum GhosttyCLI {
 struct SupacodeApp: App {
   @State private var ghostty: GhosttyRuntime
   @State private var settings = SettingsModel()
-  @State private var repositoryStore: RepositoryStore?
+  @State private var repositoryStore: RepositoryStore
   @State private var updateController: UpdateController
 
   @MainActor init() {
@@ -43,52 +43,30 @@ struct SupacodeApp: App {
     _ghostty = State(initialValue: GhosttyRuntime())
     let settingsModel = SettingsModel()
     _settings = State(initialValue: settingsModel)
+    _repositoryStore = State(initialValue: makeRepositoryStore())
     _updateController = State(initialValue: UpdateController(settings: settingsModel))
-  }
-
-  @MainActor
-  private func ensureRepositoryStore() {
-    if repositoryStore == nil {
-      repositoryStore = makeRepositoryStore()
-    }
   }
 
   var body: some Scene {
     WindowGroup {
-      if let repositoryStore {
-        ContentView(runtime: ghostty)
-          .environment(settings)
-          .environment(updateController)
-          .environment(repositoryStore)
-          .preferredColorScheme(settings.preferredColorScheme)
-      } else {
-        ProgressView()
-          .task {
-            ensureRepositoryStore()
-          }
-      }
+      ContentView(runtime: ghostty)
+        .environment(settings)
+        .environment(updateController)
+        .environment(repositoryStore)
+        .preferredColorScheme(settings.preferredColorScheme)
     }
     .commands {
-      if let repositoryStore {
-        OpenRepositoryCommands(repositoryStore: repositoryStore)
-        WorktreeCommands(repositoryStore: repositoryStore)
-      }
+      OpenRepositoryCommands(repositoryStore: repositoryStore)
+      WorktreeCommands(repositoryStore: repositoryStore)
       SidebarCommands()
       TerminalCommands()
       UpdateCommands(updateController: updateController)
     }
     Settings {
-      if let repositoryStore {
-        SettingsView()
-          .environment(settings)
-          .environment(updateController)
-          .environment(repositoryStore)
-      } else {
-        ProgressView()
-          .task {
-            ensureRepositoryStore()
-          }
-      }
+      SettingsView()
+        .environment(settings)
+        .environment(updateController)
+        .environment(repositoryStore)
     }
   }
 }
