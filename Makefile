@@ -32,7 +32,7 @@ $(GHOSTTY_BUILD_OUTPUTS):
 	@cd $(CURRENT_MAKEFILE_DIR)/ThirdParty/ghostty && mise exec -- zig build -Doptimize=ReleaseFast -Demit-xcframework=true -Dsentry=false
 	rsync -a ThirdParty/ghostty/macos/GhosttyKit.xcframework Frameworks
 
-sync-ghostty-resources: # Sync ghostty resources (themes, docs) over to the main repo
+sync-ghostty-resources:
 	@src="$(GHOSTTY_RESOURCE_PATH)"; \
 	dst="$(CURRENT_MAKEFILE_DIR)/supacode/Resources/ghostty"; \
 	terminfo_src="$(GHOSTTY_TERMINFO_PATH)"; \
