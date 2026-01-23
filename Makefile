@@ -88,7 +88,8 @@ bump-version: # Bump app version (usage: make bump-version [VERSION=x.x.x] [BUIL
 		fi; \
 		major="$$(echo "$$current" | cut -d. -f1)"; \
 		minor="$$(echo "$$current" | cut -d. -f2)"; \
-		version="$$major.$$((minor + 1)).0"; \
+		patch="$$(echo "$$current" | cut -d. -f3)"; \
+		version="$$major.$$minor.$$((patch + 1))"; \
 	else \
 		if ! echo "$(VERSION)" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$$'; then \
 			echo "error: VERSION must be in x.x.x format"; \
@@ -114,4 +115,7 @@ bump-version: # Bump app version (usage: make bump-version [VERSION=x.x.x] [BUIL
 		"$(CURRENT_MAKEFILE_DIR)/supacode.xcodeproj/project.pbxproj"; \
 	sed -i '' "s/CURRENT_PROJECT_VERSION = [0-9]*;/CURRENT_PROJECT_VERSION = $$build;/g" \
 		"$(CURRENT_MAKEFILE_DIR)/supacode.xcodeproj/project.pbxproj"; \
-	echo "version bumped to $$version (build $$build)"
+	git add "$(CURRENT_MAKEFILE_DIR)/supacode.xcodeproj/project.pbxproj"; \
+	git commit -m "bump v$$version"; \
+	git tag "v$$version"; \
+	echo "version bumped to $$version (build $$build), tagged v$$version"
