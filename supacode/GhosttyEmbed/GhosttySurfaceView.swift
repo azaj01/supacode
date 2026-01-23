@@ -1,4 +1,6 @@
 import AppKit
+import Carbon
+import CoreText
 import GhosttyKit
 
 final class GhosttySurfaceView: NSView, Identifiable {
@@ -13,6 +15,21 @@ final class GhosttySurfaceView: NSView, Identifiable {
   private var pendingFocus = false
   private var lastPerformKeyEvent: TimeInterval?
   private var currentCursor: NSCursor = .iBeam
+  private var markedText = NSMutableAttributedString()
+  private var keyTextAccumulator: [String]?
+  private var cellSize: CGSize = .zero
+  private var lastScrollbar: (total: UInt64, offset: UInt64, length: UInt64)?
+  weak var scrollWrapper: GhosttySurfaceScrollView? {
+    didSet {
+      if let lastScrollbar {
+        scrollWrapper?.updateScrollbar(
+          total: lastScrollbar.total,
+          offset: lastScrollbar.offset,
+          length: lastScrollbar.length
+        )
+      }
+    }
+  }
   var onFocusChange: ((Bool) -> Void)?
 
   override var acceptsFirstResponder: Bool { true }
@@ -86,7 +103,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
     let area = NSTrackingArea(
       rect: bounds,
-      options: [.mouseMoved, .activeInKeyWindow, .inVisibleRect],
+      options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
       owner: self,
       userInfo: nil
     )
@@ -117,12 +134,47 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   override func keyDown(with event: NSEvent) {
+    guard let surface else {
+      interpretKeyEvents([event])
+      return
+    }
+    let (translationEvent, translationMods) = translationState(event, surface: surface)
     let action = event.isARepeat ? GHOSTTY_ACTION_REPEAT : GHOSTTY_ACTION_PRESS
-    sendKey(event: event, action: action)
+    keyTextAccumulator = []
+    defer { keyTextAccumulator = nil }
+    let markedTextBefore = markedText.length > 0
+    let keyboardIdBefore = markedTextBefore ? nil : keyboardLayoutId()
+    lastPerformKeyEvent = nil
+    interpretKeyEvents([translationEvent])
+    if !markedTextBefore, keyboardIdBefore != keyboardLayoutId() {
+      return
+    }
+    syncPreedit(clearIfNeeded: markedTextBefore)
+    if let list = keyTextAccumulator, !list.isEmpty {
+      for text in list {
+        _ = sendKey(
+          action: action,
+          event: event,
+          translationEvent: translationEvent,
+          translationMods: translationMods,
+          text: text,
+          composing: false
+        )
+      }
+    } else {
+      _ = sendKey(
+        action: action,
+        event: event,
+        translationEvent: translationEvent,
+        translationMods: translationMods,
+        text: ghosttyCharacters(translationEvent),
+        composing: markedText.length > 0 || markedTextBefore
+      )
+    }
   }
 
   override func keyUp(with event: NSEvent) {
-    sendKey(event: event, action: GHOSTTY_ACTION_RELEASE)
+    sendKey(action: GHOSTTY_ACTION_RELEASE, event: event)
   }
 
   override func flagsChanged(with event: NSEvent) {
@@ -155,11 +207,25 @@ final class GhosttySurfaceView: NSView, Identifiable {
         action = GHOSTTY_ACTION_PRESS
       }
     }
-    sendKey(event: event, action: action)
+    sendKey(action: action, event: event)
   }
 
   override func mouseMoved(with event: NSEvent) {
     sendMousePosition(event)
+  }
+
+  override func mouseEntered(with event: NSEvent) {
+    super.mouseEntered(with: event)
+    sendMousePosition(event)
+  }
+
+  override func mouseExited(with event: NSEvent) {
+    if NSEvent.pressedMouseButtons != 0 {
+      return
+    }
+    guard let surface else { return }
+    let mods = ghosttyMods(event.modifierFlags)
+    ghostty_surface_mouse_pos(surface, -1, -1, mods)
   }
 
   override func mouseDown(with event: NSEvent) {
@@ -171,11 +237,27 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   override func rightMouseDown(with event: NSEvent) {
-    sendMouseButton(event, state: GHOSTTY_MOUSE_PRESS, button: GHOSTTY_MOUSE_RIGHT)
+    guard let surface else {
+      super.rightMouseDown(with: event)
+      return
+    }
+    let mods = ghosttyMods(event.modifierFlags)
+    if ghostty_surface_mouse_button(surface, GHOSTTY_MOUSE_PRESS, GHOSTTY_MOUSE_RIGHT, mods) {
+      return
+    }
+    super.rightMouseDown(with: event)
   }
 
   override func rightMouseUp(with event: NSEvent) {
-    sendMouseButton(event, state: GHOSTTY_MOUSE_RELEASE, button: GHOSTTY_MOUSE_RIGHT)
+    guard let surface else {
+      super.rightMouseUp(with: event)
+      return
+    }
+    let mods = ghosttyMods(event.modifierFlags)
+    if ghostty_surface_mouse_button(surface, GHOSTTY_MOUSE_RELEASE, GHOSTTY_MOUSE_RIGHT, mods) {
+      return
+    }
+    super.rightMouseUp(with: event)
   }
 
   override func otherMouseDown(with event: NSEvent) {
@@ -200,7 +282,13 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   override func scrollWheel(with event: NSEvent) {
     guard let surface else { return }
-    ghostty_surface_mouse_scroll(surface, event.scrollingDeltaX, event.scrollingDeltaY, 0)
+    var scrollX = event.scrollingDeltaX
+    var scrollY = event.scrollingDeltaY
+    if event.hasPreciseScrollingDeltas {
+      scrollX *= 2
+      scrollY *= 2
+    }
+    ghostty_surface_mouse_scroll(surface, scrollX, scrollY, scrollMods(for: event))
   }
 
   func updateSurfaceSize() {
@@ -221,6 +309,28 @@ final class GhosttySurfaceView: NSView, Identifiable {
     let rows = Int(height) / Int(currentSize.cell_height_px)
     guard columns >= 5, rows >= 2 else { return }
     ghostty_surface_set_size(surface, width, height)
+  }
+
+  func updateCellSize(width: UInt32, height: UInt32) {
+    cellSize = CGSize(width: CGFloat(width), height: CGFloat(height))
+    scrollWrapper?.updateSurfaceSize()
+  }
+
+  func updateScrollbar(total: UInt64, offset: UInt64, length: UInt64) {
+    lastScrollbar = (total: total, offset: offset, length: length)
+    scrollWrapper?.updateScrollbar(total: total, offset: offset, length: length)
+  }
+
+  func currentCellSize() -> CGSize {
+    cellSize
+  }
+
+  func shouldShowScrollbar() -> Bool {
+    runtime.shouldShowScrollbar()
+  }
+
+  func scrollbarAppearanceName() -> NSAppearance.Name {
+    runtime.scrollbarAppearanceName()
   }
 
   func setMouseShape(_ shape: ghostty_action_mouse_shape_e) {
@@ -369,7 +479,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
         isARepeat: event.isARepeat,
         keyCode: event.keyCode
       ) {
-        sendKey(event: finalEvent, action: GHOSTTY_ACTION_PRESS)
+        sendKey(action: GHOSTTY_ACTION_PRESS, event: finalEvent)
         return true
       }
     }
@@ -392,7 +502,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
         isARepeat: event.isARepeat,
         keyCode: event.keyCode
       ) {
-        sendKey(event: finalEvent, action: GHOSTTY_ACTION_PRESS)
+        sendKey(action: GHOSTTY_ACTION_PRESS, event: finalEvent)
         return true
       }
     }
@@ -420,13 +530,125 @@ final class GhosttySurfaceView: NSView, Identifiable {
           isARepeat: event.isARepeat,
           keyCode: event.keyCode
         ) {
-          sendKey(event: finalEvent, action: GHOSTTY_ACTION_PRESS)
+          sendKey(action: GHOSTTY_ACTION_PRESS, event: finalEvent)
           return true
         }
       }
     }
     lastPerformKeyEvent = event.timestamp
     return false
+  }
+
+  override func doCommand(by selector: Selector) {
+    if let lastPerformKeyEvent,
+      let current = NSApp.currentEvent,
+      lastPerformKeyEvent == current.timestamp
+    {
+      NSApp.sendEvent(current)
+      return
+    }
+    switch selector {
+    case #selector(moveToBeginningOfDocument(_:)):
+      performBindingAction("scroll_to_top")
+    case #selector(moveToEndOfDocument(_:)):
+      performBindingAction("scroll_to_bottom")
+    default:
+      break
+    }
+  }
+
+  override func menu(for event: NSEvent) -> NSMenu? {
+    switch event.type {
+    case .rightMouseDown:
+      break
+    case .leftMouseDown:
+      if !event.modifierFlags.contains(.control) {
+        return nil
+      }
+      guard let surface else { return nil }
+      if ghostty_surface_mouse_captured(surface) {
+        return nil
+      }
+      let mods = ghosttyMods(event.modifierFlags)
+      _ = ghostty_surface_mouse_button(surface, GHOSTTY_MOUSE_PRESS, GHOSTTY_MOUSE_RIGHT, mods)
+    default:
+      return nil
+    }
+
+    guard let surface else { return nil }
+    if ghostty_surface_mouse_captured(surface) {
+      return nil
+    }
+
+    let menu = NSMenu()
+    if ghostty_surface_has_selection(surface) {
+      menu.addItem(NSMenuItem(title: "Copy", action: #selector(copy(_:)), keyEquivalent: ""))
+    }
+    menu.addItem(NSMenuItem(title: "Paste", action: #selector(paste(_:)), keyEquivalent: ""))
+    menu.addItem(.separator())
+    menu.addItem(menuItem(
+      title: "Split Right",
+      action: #selector(splitRight(_:)),
+      symbol: "rectangle.righthalf.inset.filled"
+    ))
+    menu.addItem(menuItem(
+      title: "Split Left",
+      action: #selector(splitLeft(_:)),
+      symbol: "rectangle.leadinghalf.inset.filled"
+    ))
+    menu.addItem(menuItem(
+      title: "Split Down",
+      action: #selector(splitDown(_:)),
+      symbol: "rectangle.bottomhalf.inset.filled"
+    ))
+    menu.addItem(menuItem(
+      title: "Split Up",
+      action: #selector(splitUp(_:)),
+      symbol: "rectangle.tophalf.inset.filled"
+    ))
+    menu.addItem(.separator())
+    menu.addItem(menuItem(
+      title: "Reset Terminal",
+      action: #selector(resetTerminal(_:)),
+      symbol: "arrow.trianglehead.2.clockwise"
+    ))
+    menu.addItem(.separator())
+    menu.addItem(menuItem(
+      title: "Change Title...",
+      action: #selector(changeTitle(_:)),
+      symbol: "pencil.line"
+    ))
+    return menu
+  }
+
+  private func menuItem(title: String, action: Selector, symbol: String) -> NSMenuItem {
+    let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+    item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+    return item
+  }
+
+  @IBAction func splitRight(_ sender: Any?) {
+    _ = bridge.onSplitAction?(.newSplit(direction: .right))
+  }
+
+  @IBAction func splitLeft(_ sender: Any?) {
+    _ = bridge.onSplitAction?(.newSplit(direction: .left))
+  }
+
+  @IBAction func splitDown(_ sender: Any?) {
+    _ = bridge.onSplitAction?(.newSplit(direction: .down))
+  }
+
+  @IBAction func splitUp(_ sender: Any?) {
+    _ = bridge.onSplitAction?(.newSplit(direction: .top))
+  }
+
+  @IBAction func resetTerminal(_ sender: Any?) {
+    performBindingAction("reset")
+  }
+
+  @IBAction func changeTitle(_ sender: Any?) {
+    performBindingAction("prompt_surface_title")
   }
 
   private func shouldAttemptMenu(for flags: ghostty_binding_flags_e) -> Bool {
@@ -455,23 +677,43 @@ final class GhosttySurfaceView: NSView, Identifiable {
     performBindingAction("select_all")
   }
 
-  private func sendKey(event: NSEvent, action: ghostty_input_action_e) {
-    guard let surface else { return }
-    let (translationEvent, translationMods) = translationState(event, surface: surface)
-    var key = ghosttyKeyEvent(translationEvent, action: action, translationMods: translationMods)
-    if let text = ghosttyCharacters(translationEvent),
-      !text.isEmpty,
-      let codepoint = text.utf8.first,
-      codepoint >= 0x20
-    {
-      text.withCString { ptr in
-        key.text = ptr
-        _ = ghostty_surface_key(surface, key)
-      }
+  @discardableResult
+  private func sendKey(
+    action: ghostty_input_action_e,
+    event: NSEvent,
+    translationEvent: NSEvent? = nil,
+    translationMods: NSEvent.ModifierFlags? = nil,
+    text: String? = nil,
+    composing: Bool = false
+  ) -> Bool {
+    guard let surface else { return false }
+    let resolvedEvent: NSEvent
+    let resolvedMods: NSEvent.ModifierFlags
+    if let translationEvent, let translationMods {
+      resolvedEvent = translationEvent
+      resolvedMods = translationMods
     } else {
-      key.text = nil
-      _ = ghostty_surface_key(surface, key)
+      (resolvedEvent, resolvedMods) = translationState(event, surface: surface)
     }
+    var key = ghosttyKeyEvent(
+      resolvedEvent,
+      action: action,
+      translationMods: resolvedMods,
+      composing: composing
+    )
+    let finalText = text ?? ghosttyCharacters(resolvedEvent)
+    if let finalText, !finalText.isEmpty {
+      if text == nil, let codepoint = finalText.utf8.first, codepoint < 0x20 {
+        key.text = nil
+        return ghostty_surface_key(surface, key)
+      }
+      return finalText.withCString { ptr in
+        key.text = ptr
+        return ghostty_surface_key(surface, key)
+      }
+    }
+    key.text = nil
+    return ghostty_surface_key(surface, key)
   }
 
   func performBindingAction(_ action: String) {
@@ -517,13 +759,14 @@ final class GhosttySurfaceView: NSView, Identifiable {
   private func ghosttyKeyEvent(
     _ event: NSEvent,
     action: ghostty_input_action_e,
-    translationMods: NSEvent.ModifierFlags
+    translationMods: NSEvent.ModifierFlags,
+    composing: Bool = false
   ) -> ghostty_input_key_s {
     var keyEvent: ghostty_input_key_s = .init()
     keyEvent.action = action
     keyEvent.keycode = UInt32(event.keyCode)
     keyEvent.text = nil
-    keyEvent.composing = false
+    keyEvent.composing = composing
     keyEvent.mods = ghosttyMods(event.modifierFlags)
     keyEvent.consumed_mods = ghosttyMods(translationMods.subtracting([.control, .command]))
     keyEvent.unshifted_codepoint = 0
@@ -550,6 +793,58 @@ final class GhosttySurfaceView: NSView, Identifiable {
       }
     }
     return characters
+  }
+
+  private func syncPreedit(clearIfNeeded: Bool = true) {
+    guard let surface else { return }
+    if markedText.length > 0 {
+      let str = markedText.string
+      let len = str.utf8CString.count
+      if len > 0 {
+        markedText.string.withCString { ptr in
+          ghostty_surface_preedit(surface, ptr, UInt(len - 1))
+        }
+      }
+    } else if clearIfNeeded {
+      ghostty_surface_preedit(surface, nil, 0)
+    }
+  }
+
+  private func scrollMods(for event: NSEvent) -> ghostty_input_scroll_mods_t {
+    var value: Int32 = 0
+    if event.hasPreciseScrollingDeltas {
+      value |= 0b0000_0001
+    }
+    let momentum: Int32
+    switch event.momentumPhase {
+    case .began:
+      momentum = 1
+    case .stationary:
+      momentum = 2
+    case .changed:
+      momentum = 3
+    case .ended:
+      momentum = 4
+    case .cancelled:
+      momentum = 5
+    case .mayBegin:
+      momentum = 6
+    default:
+      momentum = 0
+    }
+    value |= (momentum << 1)
+    return ghostty_input_scroll_mods_t(value)
+  }
+
+  private func keyboardLayoutId() -> String? {
+    guard let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue() else {
+      return nil
+    }
+    guard let raw = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) else {
+      return nil
+    }
+    let value = Unmanaged<CFString>.fromOpaque(raw).takeUnretainedValue()
+    return value as String
   }
 
   private func sendMousePosition(_ event: NSEvent) {
@@ -595,4 +890,319 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return flags
   }
 
+}
+
+extension GhosttySurfaceView: NSTextInputClient {
+  func hasMarkedText() -> Bool {
+    markedText.length > 0
+  }
+
+  func markedRange() -> NSRange {
+    guard markedText.length > 0 else { return NSRange() }
+    return NSRange(location: 0, length: markedText.length)
+  }
+
+  func selectedRange() -> NSRange {
+    guard let surface else { return NSRange() }
+    var text = ghostty_text_s()
+    guard ghostty_surface_read_selection(surface, &text) else { return NSRange() }
+    defer { ghostty_surface_free_text(surface, &text) }
+    return NSRange(location: Int(text.offset_start), length: Int(text.offset_len))
+  }
+
+  func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
+    switch string {
+    case let attributedText as NSAttributedString:
+      markedText = NSMutableAttributedString(attributedString: attributedText)
+    case let stringValue as String:
+      markedText = NSMutableAttributedString(string: stringValue)
+    default:
+      return
+    }
+    if keyTextAccumulator == nil {
+      syncPreedit()
+    }
+  }
+
+  func unmarkText() {
+    if markedText.length > 0 {
+      markedText.mutableString.setString("")
+      syncPreedit()
+    }
+  }
+
+  func validAttributesForMarkedText() -> [NSAttributedString.Key] {
+    []
+  }
+
+  func attributedSubstring(
+    forProposedRange range: NSRange,
+    actualRange: NSRangePointer?
+  ) -> NSAttributedString? {
+    guard let surface else { return nil }
+    guard range.length > 0 else { return nil }
+    var text = ghostty_text_s()
+    guard ghostty_surface_read_selection(surface, &text) else { return nil }
+    defer { ghostty_surface_free_text(surface, &text) }
+    var attributes: [NSAttributedString.Key: Any] = [:]
+    if let fontRaw = ghostty_surface_quicklook_font(surface) {
+      let font = Unmanaged<CTFont>.fromOpaque(fontRaw)
+      attributes[.font] = font.takeUnretainedValue()
+      font.release()
+    }
+    return NSAttributedString(string: String(cString: text.text), attributes: attributes)
+  }
+
+  func characterIndex(for point: NSPoint) -> Int {
+    0
+  }
+
+  func firstRect(forCharacterRange range: NSRange, actualRange: NSRangePointer?) -> NSRect {
+    guard let surface else {
+      return NSMakeRect(frame.origin.x, frame.origin.y, 0, 0)
+    }
+    var caretX: Double = 0
+    var caretY: Double = 0
+    var width: Double = cellSize.width
+    var height: Double = cellSize.height
+    if range.length > 0, range != selectedRange() {
+      var text = ghostty_text_s()
+      if ghostty_surface_read_selection(surface, &text) {
+        caretX = text.tl_px_x - 2
+        caretY = text.tl_px_y + 2
+        ghostty_surface_free_text(surface, &text)
+      } else {
+        ghostty_surface_ime_point(surface, &caretX, &caretY, &width, &height)
+      }
+    } else {
+      ghostty_surface_ime_point(surface, &caretX, &caretY, &width, &height)
+    }
+    if range.length == 0, width > 0 {
+      width = 0
+      caretX += cellSize.width * Double(range.location + range.length)
+    }
+    let viewRect = NSMakeRect(
+      caretX,
+      frame.size.height - caretY,
+      width,
+      max(height, cellSize.height)
+    )
+    let winRect = convert(viewRect, to: nil)
+    guard let window else { return winRect }
+    return window.convertToScreen(winRect)
+  }
+
+  func insertText(_ string: Any, replacementRange: NSRange) {
+    guard NSApp.currentEvent != nil else { return }
+    guard let surface else { return }
+    var chars = ""
+    switch string {
+    case let attributedText as NSAttributedString:
+      chars = attributedText.string
+    case let stringValue as String:
+      chars = stringValue
+    default:
+      return
+    }
+    unmarkText()
+    if var acc = keyTextAccumulator {
+      acc.append(chars)
+      keyTextAccumulator = acc
+      return
+    }
+    let len = chars.utf8CString.count
+    if len == 0 { return }
+    chars.withCString { ptr in
+      ghostty_surface_text(surface, ptr, UInt(len - 1))
+    }
+  }
+}
+
+final class GhosttySurfaceScrollView: NSView {
+  private struct ScrollbarState {
+    let total: UInt64
+    let offset: UInt64
+    let length: UInt64
+  }
+
+  private let scrollView: NSScrollView
+  private let documentView: NSView
+  private let surfaceView: GhosttySurfaceView
+  private var observers: [NSObjectProtocol] = []
+  private var isLiveScrolling = false
+  private var lastSentRow: Int?
+  private var scrollbar: ScrollbarState?
+
+  init(surfaceView: GhosttySurfaceView) {
+    self.surfaceView = surfaceView
+    scrollView = NSScrollView()
+    scrollView.hasHorizontalScroller = false
+    scrollView.autohidesScrollers = false
+    scrollView.usesPredominantAxisScrolling = true
+    scrollView.scrollerStyle = .overlay
+    scrollView.drawsBackground = false
+    scrollView.contentView.clipsToBounds = false
+    documentView = NSView(frame: .zero)
+    scrollView.documentView = documentView
+    documentView.addSubview(surfaceView)
+    super.init(frame: .zero)
+    addSubview(scrollView)
+    surfaceView.scrollWrapper = self
+    refreshAppearance()
+
+    scrollView.contentView.postsBoundsChangedNotifications = true
+    observers.append(NotificationCenter.default.addObserver(
+      forName: NSView.boundsDidChangeNotification,
+      object: scrollView.contentView,
+      queue: .main
+    ) { [weak self] _ in
+      self?.handleScrollChange()
+    })
+
+    observers.append(NotificationCenter.default.addObserver(
+      forName: NSScrollView.willStartLiveScrollNotification,
+      object: scrollView,
+      queue: .main
+    ) { [weak self] _ in
+      self?.isLiveScrolling = true
+    })
+
+    observers.append(NotificationCenter.default.addObserver(
+      forName: NSScrollView.didEndLiveScrollNotification,
+      object: scrollView,
+      queue: .main
+    ) { [weak self] _ in
+      self?.isLiveScrolling = false
+    })
+
+    observers.append(NotificationCenter.default.addObserver(
+      forName: NSScrollView.didLiveScrollNotification,
+      object: scrollView,
+      queue: .main
+    ) { [weak self] _ in
+      self?.handleLiveScroll()
+    })
+
+    observers.append(NotificationCenter.default.addObserver(
+      forName: NSScroller.preferredScrollerStyleDidChangeNotification,
+      object: nil,
+      queue: nil
+    ) { [weak self] _ in
+      self?.handleScrollerStyleChange()
+    })
+
+    observers.append(NotificationCenter.default.addObserver(
+      forName: .ghosttyRuntimeConfigDidChange,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      self?.refreshAppearance()
+    })
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is not supported")
+  }
+
+  deinit {
+    observers.forEach { NotificationCenter.default.removeObserver($0) }
+  }
+
+  override func layout() {
+    super.layout()
+    scrollView.frame = bounds
+    surfaceView.frame.size = scrollView.bounds.size
+    documentView.frame.size.width = scrollView.bounds.width
+    synchronizeScrollView()
+    synchronizeSurfaceView()
+    surfaceView.updateSurfaceSize()
+  }
+
+  func updateSurfaceSize() {
+    surfaceView.updateSurfaceSize()
+    needsLayout = true
+  }
+
+  func updateScrollbar(total: UInt64, offset: UInt64, length: UInt64) {
+    scrollbar = ScrollbarState(total: total, offset: offset, length: length)
+    synchronizeScrollView()
+  }
+
+  func refreshAppearance() {
+    scrollView.hasVerticalScroller = surfaceView.shouldShowScrollbar()
+    scrollView.appearance = NSAppearance(named: surfaceView.scrollbarAppearanceName())
+    scrollView.scrollerStyle = .overlay
+    updateTrackingAreas()
+  }
+
+  private func handleScrollChange() {
+    synchronizeSurfaceView()
+  }
+
+  private func handleScrollerStyleChange() {
+    refreshAppearance()
+    surfaceView.updateSurfaceSize()
+  }
+
+  private func synchronizeSurfaceView() {
+    let visibleRect = scrollView.contentView.documentVisibleRect
+    surfaceView.frame.origin = visibleRect.origin
+  }
+
+  private func synchronizeScrollView() {
+    documentView.frame.size.height = documentHeight()
+    if !isLiveScrolling {
+      let cellHeight = surfaceView.currentCellSize().height
+      if cellHeight > 0, let scrollbar {
+        let offsetY =
+          CGFloat(scrollbar.total - scrollbar.offset - scrollbar.length) * cellHeight
+        scrollView.contentView.scroll(to: CGPoint(x: 0, y: offsetY))
+        lastSentRow = Int(scrollbar.offset)
+      }
+    }
+    scrollView.reflectScrolledClipView(scrollView.contentView)
+  }
+
+  private func handleLiveScroll() {
+    let cellHeight = surfaceView.currentCellSize().height
+    guard cellHeight > 0 else { return }
+    let visibleRect = scrollView.contentView.documentVisibleRect
+    let documentHeight = documentView.frame.height
+    let scrollOffset = documentHeight - visibleRect.origin.y - visibleRect.height
+    let row = Int(scrollOffset / cellHeight)
+    guard row != lastSentRow else { return }
+    lastSentRow = row
+    surfaceView.performBindingAction("scroll_to_row:\(row)")
+  }
+
+  private func documentHeight() -> CGFloat {
+    let contentHeight = scrollView.contentSize.height
+    let cellHeight = surfaceView.currentCellSize().height
+    if cellHeight > 0, let scrollbar {
+      let documentGridHeight = CGFloat(scrollbar.total) * cellHeight
+      let padding = contentHeight - (CGFloat(scrollbar.length) * cellHeight)
+      return documentGridHeight + padding
+    }
+    return contentHeight
+  }
+
+  override func mouseMoved(with event: NSEvent) {
+    guard NSScroller.preferredScrollerStyle == .legacy else { return }
+    scrollView.flashScrollers()
+  }
+
+  override func updateTrackingAreas() {
+    trackingAreas.forEach { removeTrackingArea($0) }
+    super.updateTrackingAreas()
+    guard let scroller = scrollView.verticalScroller else { return }
+    addTrackingArea(NSTrackingArea(
+      rect: convert(scroller.bounds, from: scroller),
+      options: [
+        .mouseMoved,
+        .activeInKeyWindow,
+      ],
+      owner: self,
+      userInfo: nil
+    ))
+  }
 }
