@@ -11,6 +11,7 @@ final class GhosttySurfaceBridge {
   var onCloseRequest: ((Bool) -> Void)?
   var onNewTab: (() -> Bool)?
   var onCloseTab: ((ghostty_action_close_tab_mode_e) -> Bool)?
+  var onGotoTab: ((ghostty_action_goto_tab_e) -> Bool)?
 
   func handleAction(target: ghostty_target_s, action: ghostty_action_s) -> Bool {
     if let handled = handleAppAction(action) { return handled }
@@ -46,6 +47,8 @@ final class GhosttySurfaceBridge {
       return onNewTab?() ?? false
     case GHOSTTY_ACTION_CLOSE_TAB:
       return onCloseTab?(action.action.close_tab_mode) ?? false
+    case GHOSTTY_ACTION_GOTO_TAB:
+      return onGotoTab?(action.action.goto_tab) ?? false
     default:
       return nil
     }

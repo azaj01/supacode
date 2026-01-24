@@ -275,6 +275,10 @@ final class WorktreeTerminalState: BonsplitDelegate {
       guard let self, let view else { return false }
       return self.handleCloseTabRequest(from: view, mode: mode)
     }
+    view.bridge.onGotoTab = { [weak self] target in
+      guard let self else { return false }
+      return self.handleGotoTabRequest(target)
+    }
     view.bridge.onCloseRequest = { [weak self, weak view] processAlive in
       guard let self, let view else { return }
       self.handleCloseRequest(for: view, processAlive: processAlive)
@@ -412,6 +416,35 @@ final class WorktreeTerminalState: BonsplitDelegate {
     _ = view
     _ = mode
     return closeFocusedTab()
+  }
+
+  private func handleGotoTabRequest(_ target: ghostty_action_goto_tab_e) -> Bool {
+    guard let paneId = controller.focusedPaneId else { return false }
+    let tabs = controller.tabs(inPane: paneId)
+    guard !tabs.isEmpty else { return false }
+    let raw = Int(target.rawValue)
+    let selectedIndex = controller.selectedTab(inPane: paneId).flatMap { selected in
+      tabs.firstIndex { $0.id == selected.id }
+    }
+    let targetIndex: Int
+    if raw <= 0 {
+      switch raw {
+      case Int(GHOSTTY_GOTO_TAB_PREVIOUS.rawValue):
+        let current = selectedIndex ?? 0
+        targetIndex = (current - 1 + tabs.count) % tabs.count
+      case Int(GHOSTTY_GOTO_TAB_NEXT.rawValue):
+        let current = selectedIndex ?? 0
+        targetIndex = (current + 1) % tabs.count
+      case Int(GHOSTTY_GOTO_TAB_LAST.rawValue):
+        targetIndex = tabs.count - 1
+      default:
+        return false
+      }
+    } else {
+      targetIndex = min(raw - 1, tabs.count - 1)
+    }
+    controller.selectTab(tabs[targetIndex].id)
+    return true
   }
 
   private func mapDropZone(_ zone: TerminalSplitTreeView.DropZone)
