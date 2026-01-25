@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  osc-notify [osc9|osc777|both] [args]
+
+Commands:
+  osc9 [body]
+  osc777 [title] [body]
+  both [osc9_body] [title] [osc777_body]
+
+Defaults:
+  osc9 body:   Hello from OSC 9
+  osc777 title: Title
+  osc777 body:  Body
+USAGE
+}
+
+command=${1:-both}
+
+case "$command" in
+  osc9)
+    body=${2:-"Hello from OSC 9"}
+    printf '\033]9;%s\a' "$body"
+    ;;
+  osc777)
+    title=${2:-"Title"}
+    body=${3:-"Body"}
+    printf '\033]777;notify;%s;%s\a' "$title" "$body"
+    ;;
+  both)
+    osc9_body=${2:-"Hello from OSC 9"}
+    title=${3:-"Title"}
+    osc777_body=${4:-"Body"}
+    printf '\033]9;%s\a' "$osc9_body"
+    printf '\033]777;notify;%s;%s\a' "$title" "$osc777_body"
+    ;;
+  help|-h|--help)
+    usage
+    ;;
+  *)
+    usage >&2
+    exit 1
+    ;;
+esac
