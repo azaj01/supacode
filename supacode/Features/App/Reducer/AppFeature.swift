@@ -179,7 +179,7 @@ struct AppFeature {
         return .none
       }
     }
-    ._printChanges()
+    ._printChanges(.actionLabels)
     Scope(state: \.repositories, action: \.repositories) {
       RepositoriesFeature()
     }
