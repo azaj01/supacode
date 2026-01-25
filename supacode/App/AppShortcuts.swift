@@ -49,6 +49,10 @@ enum AppShortcuts {
   static let toggleSidebar = AppShortcut(key: "[", modifiers: .command)
   static let refreshWorktrees = AppShortcut(key: "r", modifiers: .command)
   static let checkForUpdates = AppShortcut(key: "u", modifiers: .command)
+  static let selectWorktree1 = AppShortcut(key: "1", modifiers: [.command, .control])
+  static let selectWorktree2 = AppShortcut(key: "2", modifiers: [.command, .control])
+  static let selectWorktree3 = AppShortcut(key: "3", modifiers: [.command, .control])
+  static let selectWorktree4 = AppShortcut(key: "4", modifiers: [.command, .control])
   static let all: [AppShortcut] = [
     newWorktree,
     openFinder,
@@ -57,5 +61,9 @@ enum AppShortcuts {
     toggleSidebar,
     refreshWorktrees,
     checkForUpdates,
+    selectWorktree1,
+    selectWorktree2,
+    selectWorktree3,
+    selectWorktree4,
   ]
 }
