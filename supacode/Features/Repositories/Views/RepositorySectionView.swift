@@ -1,3 +1,4 @@
+import AppKit
 import ComposableArchitecture
 import SwiftUI
 
@@ -6,14 +7,17 @@ struct RepositorySectionView: View {
   @Binding var expandedRepoIDs: Set<Repository.ID>
   @Bindable var store: StoreOf<RepositoriesFeature>
   let terminalManager: WorktreeTerminalManager
-  @Environment(\.openWindow) private var openWindow
 
   var body: some View {
     let state = store.state
     let isExpanded = expandedRepoIDs.contains(repository.id)
     let isRemovingRepository = state.isRemovingRepository(repository)
     let openRepoSettings = {
-      openWindow(id: WindowIdentifiers.repoSettings, value: repository.id)
+      _ = Task { @MainActor in
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        await Task.yield()
+        NotificationCenter.default.post(name: .openRepositorySettings, object: repository.id)
+      }
     }
     Section {
       WorktreeRowsView(
