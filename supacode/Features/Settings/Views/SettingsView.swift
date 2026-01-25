@@ -104,6 +104,12 @@ struct SettingsView: View {
     .frame(minWidth: 750, minHeight: 500)
     .background(WindowLevelSetter(level: .floating))
     .ignoresSafeArea(.container, edges: .top)
+    .onChange(of: repositories) { _, updatedRepositories in
+      guard case .repository(let repositoryID) = selection else { return }
+      if !updatedRepositories.contains(where: { $0.id == repositoryID }) {
+        selection = .agents
+      }
+    }
     .onReceive(NotificationCenter.default.publisher(for: .openRepositorySettings)) { notification in
       if let repositoryID = notification.object as? Repository.ID {
         selection = .repository(repositoryID)

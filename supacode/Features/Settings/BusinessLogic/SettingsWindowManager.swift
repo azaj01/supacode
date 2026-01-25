@@ -24,7 +24,10 @@ final class SettingsWindowManager {
   }
 
   func show() {
-    if let existingWindow = settingsWindow, existingWindow.isVisible {
+    if let existingWindow = settingsWindow {
+      if existingWindow.isMiniaturized {
+        existingWindow.deminiaturize(nil)
+      }
       existingWindow.makeKeyAndOrderFront(nil)
       return
     }
