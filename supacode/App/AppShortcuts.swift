@@ -43,6 +43,7 @@ struct AppShortcut {
 
 enum AppShortcuts {
   static let newWorktree = AppShortcut(key: "n", modifiers: .command)
+  static let openSettings = AppShortcut(key: ",", modifiers: .command)
   static let openFinder = AppShortcut(key: "o", modifiers: .command)
   static let copyPath = AppShortcut(key: "c", modifiers: [.command, .shift])
   static let openRepository = AppShortcut(key: "o", modifiers: [.command, .shift])
@@ -74,6 +75,7 @@ enum AppShortcuts {
   ]
   static let all: [AppShortcut] = [
     newWorktree,
+    openSettings,
     openFinder,
     copyPath,
     openRepository,

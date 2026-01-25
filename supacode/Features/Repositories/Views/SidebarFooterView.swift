@@ -19,7 +19,7 @@ struct SidebarFooterView: View {
         Label("Settings", systemImage: "gearshape")
       }
       .labelStyle(.iconOnly)
-      .help("Settings (no shortcut)")
+      .help("Settings (\(AppShortcuts.openSettings.display))")
     }
     .buttonStyle(.plain)
     .padding()
