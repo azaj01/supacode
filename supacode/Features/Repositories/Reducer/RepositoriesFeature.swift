@@ -407,7 +407,7 @@ struct RepositoriesFeature {
           : nil
         return .run { send in
           do {
-            _ = try await gitClient.removeWorktree(worktree, true)
+            _ = try await gitClient.removeWorktree(worktree)
             await send(
               .worktreeRemoved(
                 worktree.id,
