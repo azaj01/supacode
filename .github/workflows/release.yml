@@ -270,7 +270,9 @@ jobs:
             --identity="$DEVELOPER_ID_IDENTITY_SHA"
 
           DMG_OUTPUT=$(find build -name "*.dmg" -maxdepth 1 | head -1)
-          mv "$DMG_OUTPUT" build/supacode.dmg
+          if [ "$DMG_OUTPUT" != "build/supacode.dmg" ]; then
+            mv "$DMG_OUTPUT" build/supacode.dmg
+          fi
           DMG_PATH=build/supacode.dmg
 
           for attempt in 1 2 3; do
