@@ -16,6 +16,7 @@ final class WorktreeTerminalState {
   private var tabIsRunningById: [TerminalTabID: Bool] = [:]
   private var pendingSetupScript: Bool
   private var lastReportedTaskStatus: WorktreeTaskStatus?
+  private var lastEmittedFocusSurfaceId: UUID?
   var notifications: [WorktreeTerminalNotification] = []
   var notificationsEnabled = true
   var hasUnseenNotification = false
@@ -111,7 +112,10 @@ final class WorktreeTerminalState {
     tabManager.closeTab(tabId)
     if let selected = tabManager.selectedTabId {
       focusSurface(in: selected)
+    } else {
+      lastEmittedFocusSurfaceId = nil
     }
+    emitTaskStatusIfChanged()
     onTabClosed?()
   }
 
@@ -338,7 +342,7 @@ final class WorktreeTerminalState {
       self.focusedSurfaceIdByTab[tabId] = view.id
       self.tabManager.selectTab(tabId)
       self.updateTabTitle(for: tabId)
-      self.onFocusChanged?(view.id)
+      self.emitFocusChangedIfNeeded(view.id)
       self.emitTaskStatusIfChanged()
     }
     surfaces[view.id] = view
@@ -368,7 +372,7 @@ final class WorktreeTerminalState {
     focusedSurfaceIdByTab[tabId] = surface.id
     surface.requestFocus()
     updateTabTitle(for: tabId)
-    onFocusChanged?(surface.id)
+    emitFocusChangedIfNeeded(surface.id)
   }
 
   private func appendNotification(title: String, body: String, surfaceId: UUID) {
@@ -420,6 +424,12 @@ final class WorktreeTerminalState {
       lastReportedTaskStatus = newStatus
       onTaskStatusChanged?(newStatus)
     }
+  }
+
+  private func emitFocusChangedIfNeeded(_ surfaceId: UUID) {
+    guard surfaceId != lastEmittedFocusSurfaceId else { return }
+    lastEmittedFocusSurfaceId = surfaceId
+    onFocusChanged?(surfaceId)
   }
 
   private func isRunningProgressState(_ state: ghostty_action_progress_report_state_e?) -> Bool {
