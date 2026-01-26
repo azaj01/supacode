@@ -301,7 +301,9 @@ jobs:
         with:
           name: release-notes
           path: build
-      - name: Generate appcast with history
+      - name: Generate appcast with history and deltas
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           NOTES_FILE=build/release-notes.md
@@ -314,8 +316,17 @@ jobs:
 
           curl -fsSL "https://supacode.sh/download/latest/appcast.xml" -o "$STAGING/appcast.xml" || true
 
-          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | ./bins/generate_appcast --download-url-prefix "https://supacode.sh/download/$TAG/" --embed-release-notes --maximum-versions 10 --ed-key-file - "$STAGING"
+          for i in $(seq 1 5); do
+            PREV_TAG=$(gh release list --limit $i --exclude-drafts --exclude-pre-releases -R supabitapp/supacode --json tagName --jq ".[$((i-1))].tagName" 2>/dev/null || true)
+            if [ -n "$PREV_TAG" ] && [ "$PREV_TAG" != "$TAG" ]; then
+              echo "Downloading $PREV_TAG for delta generation..."
+              gh release download "$PREV_TAG" -p "supacode.app.zip" -O "$STAGING/supacode-$PREV_TAG.app.zip" -R supabitapp/supacode 2>/dev/null || true
+            fi
+          done
+
+          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | ./bins/generate_appcast --download-url-prefix "https://supacode.sh/download/$TAG/" --embed-release-notes --maximum-versions 10 --maximum-deltas 5 --delta-compression lzma --ed-key-file - "$STAGING"
           cp "$STAGING/appcast.xml" build/appcast.xml
+          find "$STAGING" -name "*.delta" -exec cp {} build/ \; 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
@@ -323,6 +334,7 @@ jobs:
             build/supacode.app.zip
             build/supacode.dmg
             build/appcast.xml
+            build/*.delta
 
   publish:
     runs-on: ubuntu-latest
@@ -351,18 +363,20 @@ jobs:
           path: build
       - run: |
           NOTES_FILE=build/release-notes.md
+          DELTA_FILES=$(find build -name "*.delta" -type f 2>/dev/null | tr '\n' ' ' || true)
+
           if gh release view "$TAG" -R "$RELEASE_REPO_MAIN" >/dev/null 2>&1; then
             gh release edit "$TAG" --notes-file "$NOTES_FILE" -R "$RELEASE_REPO_MAIN"
-            gh release upload "$TAG" build/supacode.app.zip build/supacode.dmg build/appcast.xml --clobber -R "$RELEASE_REPO_MAIN"
+            gh release upload "$TAG" build/supacode.app.zip build/supacode.dmg build/appcast.xml $DELTA_FILES --clobber -R "$RELEASE_REPO_MAIN"
           else
-            gh release create "$TAG" build/supacode.app.zip build/supacode.dmg build/appcast.xml --title "$TAG" --notes-file "$NOTES_FILE" -R "$RELEASE_REPO_MAIN"
+            gh release create "$TAG" build/supacode.app.zip build/supacode.dmg build/appcast.xml $DELTA_FILES --title "$TAG" --notes-file "$NOTES_FILE" -R "$RELEASE_REPO_MAIN"
           fi
 
           if GH_TOKEN="$SUPACODE_SH_RELEASE_TOKEN" gh release view "$TAG" -R "$RELEASE_REPO_SH" >/dev/null 2>&1; then
             GH_TOKEN="$SUPACODE_SH_RELEASE_TOKEN" gh release edit "$TAG" --notes-file "$NOTES_FILE" -R "$RELEASE_REPO_SH"
-            GH_TOKEN="$SUPACODE_SH_RELEASE_TOKEN" gh release upload "$TAG" build/supacode.app.zip build/supacode.dmg build/appcast.xml --clobber -R "$RELEASE_REPO_SH"
+            GH_TOKEN="$SUPACODE_SH_RELEASE_TOKEN" gh release upload "$TAG" build/supacode.app.zip build/supacode.dmg build/appcast.xml $DELTA_FILES --clobber -R "$RELEASE_REPO_SH"
           else
-            GH_TOKEN="$SUPACODE_SH_RELEASE_TOKEN" gh release create "$TAG" build/supacode.app.zip build/supacode.dmg build/appcast.xml --title "$TAG" --notes-file "$NOTES_FILE" -R "$RELEASE_REPO_SH"
+            GH_TOKEN="$SUPACODE_SH_RELEASE_TOKEN" gh release create "$TAG" build/supacode.app.zip build/supacode.dmg build/appcast.xml $DELTA_FILES --title "$TAG" --notes-file "$NOTES_FILE" -R "$RELEASE_REPO_SH"
           fi
       - run: |
           set -euo pipefail
