@@ -313,15 +313,11 @@ struct RepositoriesFeature {
           return .none
         }
         return .run { send in
-          do {
-            let dirty = try await gitClient.isWorktreeDirty(worktree.workingDirectory)
-            if dirty {
-              await send(.presentWorktreeRemovalConfirmation(worktree.id, repository.id))
-            } else {
-              await send(.removeWorktreeConfirmed(worktree.id, repository.id))
-            }
-          } catch {
-            await send(.worktreeRemovalFailed(error.localizedDescription, worktreeID: worktree.id))
+          let dirty = await gitClient.isWorktreeDirty(worktree.workingDirectory)
+          if dirty {
+            await send(.presentWorktreeRemovalConfirmation(worktree.id, repository.id))
+          } else {
+            await send(.removeWorktreeConfirmed(worktree.id, repository.id))
           }
         }
 

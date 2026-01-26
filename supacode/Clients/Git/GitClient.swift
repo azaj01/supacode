@@ -126,10 +126,14 @@ struct GitClient {
     )
   }
 
-  nonisolated func isWorktreeDirty(at worktreeURL: URL) async throws -> Bool {
+  nonisolated func isWorktreeDirty(at worktreeURL: URL) async -> Bool {
     let path = worktreeURL.path(percentEncoded: false)
-    let output = try await runGit(arguments: ["-C", path, "status", "--porcelain"])
-    return WorktreeDirtCheck.isDirty(statusOutput: output)
+    do {
+      let output = try await runGit(arguments: ["-C", path, "status", "--porcelain"])
+      return WorktreeDirtCheck.isDirty(statusOutput: output)
+    } catch {
+      return true
+    }
   }
 
   nonisolated func removeWorktree(_ worktree: Worktree) async throws -> URL {
