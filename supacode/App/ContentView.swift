@@ -14,7 +14,7 @@ struct ContentView: View {
   let terminalManager: WorktreeTerminalManager
   @Environment(\.scenePhase) private var scenePhase
   @State private var leftSidebarVisibility: NavigationSplitViewVisibility = .all
-  @State private var isRightSidebarVisible = true
+  @State private var isRightSidebarVisible = false
 
   init(store: StoreOf<AppFeature>, terminalManager: WorktreeTerminalManager) {
     self.store = store
