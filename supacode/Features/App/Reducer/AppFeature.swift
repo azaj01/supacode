@@ -47,7 +47,7 @@ struct AppFeature {
   @Dependency(\.terminalClient) private var terminalClient
 
   var body: some Reducer<State, Action> {
-    Reduce { state, action in
+    let core = Reduce<State, Action> { state, action in
       switch action {
       case .task:
         return .merge(
@@ -171,7 +171,11 @@ struct AppFeature {
         return .none
       }
     }
-    ._printChanges(.actionLabels)
+    #if DEBUG
+    core._printChanges(.customDump)
+    #else
+    core.printActionLabels()
+    #endif
     Scope(state: \.repositories, action: \.repositories) {
       RepositoriesFeature()
     }
@@ -184,5 +188,20 @@ struct AppFeature {
     Scope(state: \.updates, action: \.updates) {
       UpdatesFeature()
     }
+  }
+}
+
+private struct ActionLabelReducer<Base: Reducer>: Reducer {
+  let base: Base
+
+  func reduce(into state: inout Base.State, action: Base.Action) -> Effect<Base.Action> {
+    print("received action: \(debugCaseOutput(action))")
+    return base.reduce(into: &state, action: action)
+  }
+}
+
+private extension Reducer {
+  func printActionLabels() -> ActionLabelReducer<Self> {
+    ActionLabelReducer(base: self)
   }
 }
