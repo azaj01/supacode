@@ -670,18 +670,20 @@ cmd_rm() {
   if [ "$path" = "$root" ]; then
     die "cannot remove main worktree"
   fi
-  local dirty
-  dirty=$(git -C "$path" status --porcelain)
-  if [ -n "$dirty" ] && [ "$force" -eq 0 ]; then
-    if [ -t 0 ]; then
-      printf "workspace '%s' has uncommitted changes. remove anyway? [y/N] " "$branch" >&2
-      read -r answer
-      case "$answer" in
-      y | Y | yes | YES) force=1 ;;
-      *) exit 1 ;;
-      esac
-    else
-      die "workspace dirty: '$branch'"
+  if [ "$force" -eq 0 ]; then
+    local dirty
+    dirty=$(git -C "$path" status --porcelain 2>/dev/null || true)
+    if [ -n "$dirty" ]; then
+      if [ -t 0 ]; then
+        printf "workspace '%s' has uncommitted changes. remove anyway? [y/N] " "$branch" >&2
+        read -r answer
+        case "$answer" in
+        y | Y | yes | YES) force=1 ;;
+        *) exit 1 ;;
+        esac
+      else
+        die "workspace dirty: '$branch'"
+      fi
     fi
   fi
   if [ "$force" -eq 1 ]; then
