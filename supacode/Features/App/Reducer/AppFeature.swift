@@ -61,11 +61,10 @@ struct AppFeature {
         case .active:
           return .merge(
             .send(.repositories(.loadPersistedRepositories)),
-            .send(.repositories(.startPeriodicRefresh)),
             .send(.worktreeInfo(.appBecameActive))
           )
         default:
-          return .send(.repositories(.stopPeriodicRefresh))
+          return .none
         }
 
       case .repositories(.delegate(.selectedWorktreeChanged(let worktree))):
@@ -82,13 +81,6 @@ struct AppFeature {
         return .run { _ in
           await terminalClient.prune(ids)
         }
-
-      case .repositories(.delegate(.repositoryChanged(let repositoryID))):
-        if let selected = state.repositories.worktree(for: state.repositories.selectedWorktreeID),
-           selected.repositoryRootURL.path(percentEncoded: false) == repositoryID {
-          return .send(.worktreeInfo(.refresh))
-        }
-        return .none
 
       case .settings(.delegate(.settingsChanged(let settings))):
         return .send(
