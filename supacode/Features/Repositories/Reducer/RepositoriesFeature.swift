@@ -4,12 +4,7 @@ import SwiftUI
 
 private enum CancelID {
   static let load = "repositories.load"
-  static let debounce = "repositories.debounce"
   static let periodic = "repositories.periodic"
-
-  static func watcher(_ id: Repository.ID) -> String {
-    "repositories.watcher.\(id)"
-  }
 }
 
 @Reducer
@@ -24,7 +19,6 @@ struct RepositoriesFeature {
     var deletingWorktreeIDs: Set<Worktree.ID> = []
     var removingRepositoryIDs: Set<Repository.ID> = []
     var pinnedWorktreeIDs: [Worktree.ID] = []
-    var watchingRepositoryIDs: Set<Repository.ID> = []
     var shouldSelectFirstAfterReload = false
     @Presents var alert: AlertState<Alert>?
   }
@@ -33,7 +27,6 @@ struct RepositoriesFeature {
     case task
     case setOpenPanelPresented(Bool)
     case loadPersistedRepositories
-    case refreshWorktrees
     case reloadRepositories(animated: Bool)
     case repositoriesLoaded([Repository], errors: [String], animated: Bool)
     case startPeriodicRefresh
@@ -70,8 +63,6 @@ struct RepositoriesFeature {
     case repositoryRemoved(Repository.ID, selectionWasRemoved: Bool)
     case pinWorktree(Worktree.ID)
     case unpinWorktree(Worktree.ID)
-    case repositoryChangeDetected(Repository.ID)
-    case scheduleReload(animated: Bool)
     case presentAlert(title: String, message: String)
     case alert(PresentationAction<Alert>)
     case delegate(Delegate)
@@ -85,12 +76,10 @@ struct RepositoriesFeature {
   enum Delegate: Equatable {
     case selectedWorktreeChanged(Worktree?)
     case repositoriesChanged([Repository])
-    case repositoryChanged(Repository.ID)
   }
 
   @Dependency(\.gitClient) private var gitClient
   @Dependency(\.repositoryPersistence) private var repositoryPersistence
-  @Dependency(\.repositoryWatcher) private var repositoryWatcher
   @Dependency(\.continuousClock) private var clock
 
   var body: some Reducer<State, Action> {
@@ -109,9 +98,6 @@ struct RepositoriesFeature {
         let rootPaths = uniqueRootPaths(repositoryPersistence.loadRoots())
         let roots = rootPaths.map { URL(fileURLWithPath: $0) }
         return loadRepositories(roots, animated: false)
-
-      case .refreshWorktrees:
-        return .send(.reloadRepositories(animated: false))
 
       case .startPeriodicRefresh:
         return .merge(
@@ -132,7 +118,6 @@ struct RepositoriesFeature {
         return loadRepositories(roots, animated: animated)
 
       case .repositoriesLoaded(let repositories, let errors, let animated):
-        let previousWatching = state.watchingRepositoryIDs
         let previousSelection = state.selectedWorktreeID
         applyRepositories(repositories, state: &state, animated: animated)
         if !errors.isEmpty {
@@ -143,12 +128,7 @@ struct RepositoriesFeature {
         }
         let selectionChanged = previousSelection != state.selectedWorktreeID
         let selectedWorktree = state.worktree(for: state.selectedWorktreeID)
-        let effects = watcherEffects(
-          previousWatching: previousWatching,
-          repositories: repositories,
-          state: &state
-        )
-        var allEffects: [Effect<Action>] = [effects, .send(.delegate(.repositoriesChanged(repositories)))]
+        var allEffects: [Effect<Action>] = [.send(.delegate(.repositoriesChanged(repositories)))]
         if selectionChanged {
           allEffects.append(.send(.delegate(.selectedWorktreeChanged(selectedWorktree))))
         }
@@ -189,7 +169,6 @@ struct RepositoriesFeature {
         .cancellable(id: CancelID.load, cancelInFlight: true)
 
       case .openRepositoriesFinished(let repositories, let errors, let failures):
-        let previousWatching = state.watchingRepositoryIDs
         let previousSelection = state.selectedWorktreeID
         applyRepositories(repositories, state: &state, animated: false)
         if !failures.isEmpty {
@@ -206,12 +185,7 @@ struct RepositoriesFeature {
         }
         let selectionChanged = previousSelection != state.selectedWorktreeID
         let selectedWorktree = state.worktree(for: state.selectedWorktreeID)
-        let effects = watcherEffects(
-          previousWatching: previousWatching,
-          repositories: repositories,
-          state: &state
-        )
-        var allEffects: [Effect<Action>] = [effects, .send(.delegate(.repositoriesChanged(repositories)))]
+        var allEffects: [Effect<Action>] = [.send(.delegate(.repositoriesChanged(repositories)))]
         if selectionChanged {
           allEffects.append(.send(.delegate(.selectedWorktreeChanged(selectedWorktree))))
         }
@@ -495,21 +469,6 @@ struct RepositoriesFeature {
         repositoryPersistence.savePinnedWorktreeIDs(state.pinnedWorktreeIDs)
         return .none
 
-      case .repositoryChangeDetected(let repositoryID):
-        return .merge(
-          .send(.scheduleReload(animated: true)),
-          .send(.delegate(.repositoryChanged(repositoryID)))
-        )
-
-      case .scheduleReload(let animated):
-        let roots = state.repositories.map(\.rootURL)
-        guard !roots.isEmpty else { return .none }
-        return .run { send in
-          try await clock.sleep(for: .milliseconds(350))
-          await send(.reloadRepositories(animated: animated))
-        }
-        .cancellable(id: CancelID.debounce, cancelInFlight: true)
-
       case .presentAlert(let title, let message):
         state.alert = errorAlert(title: title, message: message)
         return .none
@@ -612,35 +571,6 @@ struct RepositoriesFeature {
       state.selectedWorktreeID = firstAvailableWorktreeID(from: repositories, state: state)
       state.shouldSelectFirstAfterReload = false
     }
-  }
-
-  private func watcherEffects(
-    previousWatching: Set<Repository.ID>,
-    repositories: [Repository],
-    state: inout State
-  ) -> Effect<Action> {
-    let currentIDs = Set(repositories.map(\.id))
-    let removedIDs = previousWatching.subtracting(currentIDs)
-    let addedRepos = repositories.filter { !previousWatching.contains($0.id) }
-    state.watchingRepositoryIDs = currentIDs
-    var effects: [Effect<Action>] = []
-    for id in removedIDs {
-      effects.append(.cancel(id: CancelID.watcher(id)))
-    }
-    for repository in addedRepos {
-      effects.append(
-        .run { send in
-          let watch = await MainActor.run {
-            repositoryWatcher.watch
-          }
-          for await _ in watch(repository.rootURL) {
-            await send(.repositoryChangeDetected(repository.id))
-          }
-        }
-        .cancellable(id: CancelID.watcher(repository.id))
-      )
-    }
-    return .merge(effects)
   }
 
   private func errorAlert(title: String, message: String) -> AlertState<Alert> {

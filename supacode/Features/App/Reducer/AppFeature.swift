@@ -83,13 +83,6 @@ struct AppFeature {
           await terminalClient.prune(ids)
         }
 
-      case .repositories(.delegate(.repositoryChanged(let repositoryID))):
-        if let selected = state.repositories.worktree(for: state.repositories.selectedWorktreeID),
-           selected.repositoryRootURL.path(percentEncoded: false) == repositoryID {
-          return .send(.worktreeInfo(.refresh))
-        }
-        return .none
-
       case .settings(.delegate(.settingsChanged(let settings))):
         return .send(
           .updates(
