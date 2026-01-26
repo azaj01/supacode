@@ -1,20 +1,11 @@
-import AppKit
 import Observation
 
 @MainActor
 @Observable
 final class WorktreeTerminalManager {
-  private static let notificationSound: NSSound? = {
-    guard let url = Bundle.main.url(forResource: "notification", withExtension: "wav") else {
-      return nil
-    }
-    return NSSound(contentsOf: url, byReference: true)
-  }()
-
   private let runtime: GhosttyRuntime
   private var states: [Worktree.ID: WorktreeTerminalState] = [:]
   private var notificationsEnabled = true
-  private var notificationSoundEnabled = true
   private var eventContinuation: AsyncStream<TerminalClient.Event>.Continuation?
   var selectedWorktreeID: Worktree.ID?
 
@@ -34,8 +25,6 @@ final class WorktreeTerminalManager {
       prune(keeping: ids)
     case .setNotificationsEnabled(let enabled):
       setNotificationsEnabled(enabled)
-    case .setNotificationSoundEnabled(let enabled):
-      notificationSoundEnabled = enabled
     case .clearNotificationIndicator(let worktree):
       clearNotificationIndicator(for: worktree)
     case .setSelectedWorktreeID(let id):
@@ -138,9 +127,6 @@ final class WorktreeTerminalManager {
   }
 
   private func emit(_ event: TerminalClient.Event) {
-    if case .notificationReceived = event, notificationSoundEnabled {
-      Self.notificationSound?.play()
-    }
     eventContinuation?.yield(event)
   }
 }
