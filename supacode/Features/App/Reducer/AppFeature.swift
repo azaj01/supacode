@@ -47,7 +47,7 @@ struct AppFeature {
   @Dependency(\.terminalClient) private var terminalClient
 
   var body: some Reducer<State, Action> {
-    Reduce { state, action in
+    let core = Reduce<State, Action> { state, action in
       switch action {
       case .task:
         return .merge(
@@ -61,11 +61,10 @@ struct AppFeature {
         case .active:
           return .merge(
             .send(.repositories(.loadPersistedRepositories)),
-            .send(.repositories(.startPeriodicRefresh)),
             .send(.worktreeInfo(.appBecameActive))
           )
         default:
-          return .send(.repositories(.stopPeriodicRefresh))
+          return .none
         }
 
       case .repositories(.delegate(.selectedWorktreeChanged(let worktree))):
@@ -87,13 +86,6 @@ struct AppFeature {
         return .run { _ in
           await terminalClient.prune(ids)
         }
-
-      case .repositories(.delegate(.repositoryChanged(let repositoryID))):
-        if let selected = state.repositories.worktree(for: state.repositories.selectedWorktreeID),
-           selected.repositoryRootURL.path(percentEncoded: false) == repositoryID {
-          return .send(.worktreeInfo(.refresh))
-        }
-        return .none
 
       case .settings(.delegate(.settingsChanged(let settings))):
         return .merge(
@@ -189,7 +181,11 @@ struct AppFeature {
         return .none
       }
     }
-    ._printChanges(.actionLabels)
+    #if DEBUG
+    core._printChanges(.customDump)
+    #else
+    core.printActionLabels()
+    #endif
     Scope(state: \.repositories, action: \.repositories) {
       RepositoriesFeature()
     }
@@ -202,5 +198,20 @@ struct AppFeature {
     Scope(state: \.updates, action: \.updates) {
       UpdatesFeature()
     }
+  }
+}
+
+private struct ActionLabelReducer<Base: Reducer>: Reducer {
+  let base: Base
+
+  func reduce(into state: inout Base.State, action: Base.Action) -> Effect<Base.Action> {
+    print("received action: \(debugCaseOutput(action))")
+    return base.reduce(into: &state, action: action)
+  }
+}
+
+private extension Reducer {
+  func printActionLabels() -> ActionLabelReducer<Self> {
+    ActionLabelReducer(base: self)
   }
 }

@@ -132,19 +132,26 @@ struct GitClient {
     return WorktreeDirtCheck.isDirty(statusOutput: output)
   }
 
-  nonisolated func removeWorktree(_ worktree: Worktree, force: Bool) async throws -> URL {
+  nonisolated func removeWorktree(_ worktree: Worktree) async throws -> URL {
+    if !worktree.name.isEmpty {
+      let wtURL = try wtScriptURL()
+      _ = try await runLoginShellProcess(
+        executableURL: wtURL,
+        arguments: ["rm", "-f", worktree.name],
+        currentDirectoryURL: worktree.repositoryRootURL
+      )
+      return worktree.workingDirectory
+    }
     let rootPath = worktree.repositoryRootURL.path(percentEncoded: false)
     let worktreePath = worktree.workingDirectory.path(percentEncoded: false)
-    var arguments = ["-C", rootPath, "worktree", "remove"]
-    if force {
-      arguments.append("--force")
-    }
-    arguments.append(worktreePath)
-    _ = try await runGit(arguments: arguments)
-    if !worktree.name.isEmpty {
-      let branchFlag = force ? "-D" : "-d"
-      _ = try await runGit(arguments: ["-C", rootPath, "branch", branchFlag, worktree.name])
-    }
+    _ = try await runGit(arguments: [
+      "-C",
+      rootPath,
+      "worktree",
+      "remove",
+      "--force",
+      worktreePath,
+    ])
     return worktree.workingDirectory
   }
 

@@ -31,11 +31,13 @@ jobs:
           fi
           echo "TAG=$TAG" >> "$GITHUB_ENV"
       - name: Prepare release context
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          PREV_TAG=$(git tag --list 'v*' --sort=-v:refname | grep -Fvx "$TAG" | head -n 1 || true)
-          if [ -n "$PREV_TAG" ]; then
-            RANGE="$PREV_TAG..$TAG"
+          LATEST_RELEASE_TAG=$(gh release list --limit 100 --exclude-drafts --exclude-pre-releases --json tagName,isLatest --jq '.[] | select(.isLatest) | .tagName' | head -n 1 || true)
+          if [ -n "$LATEST_RELEASE_TAG" ]; then
+            RANGE="$LATEST_RELEASE_TAG..$TAG"
           else
             RANGE="$(git rev-list --max-parents=0 HEAD)..$TAG"
           fi
@@ -127,9 +129,7 @@ jobs:
           path: |
             ~/.local/share/mise
             ~/.cache/mise
-          key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-mise-
+          key: ${{ runner.os }}-${{ runner.arch }}-mise-v0-${{ hashFiles('**/mise.toml', '**/.mise.toml', '**/.tool-versions', '**/.config/mise.toml', '**/mise/config.toml', '**/mise.lock', '**/.mise.lock', '**/mise/config.lock', '**/.config/mise.lock', '**/mise.*.toml', '**/.mise.*.toml', '**/.config/mise.*.toml', '**/mise.*.lock', '**/.mise.*.lock', '**/.config/mise.*.lock') }}
       - run: brew install mise 2>/dev/null
       - run: mise install
       - name: Ghostty cache key
@@ -181,7 +181,12 @@ jobs:
           SENTRY_ORG: supabit
           SENTRY_PROJECT: supacode
         run: |
-          mise exec -- sentry-cli debug-files upload --include-sources build/supacode.xcarchive/dSYMs
+          SENTRY_CLI_DIR="$(mise where github:getsentry/sentry-cli)"
+          SENTRY_CLI="$SENTRY_CLI_DIR/sentry-cli-Darwin"
+          if [ ! -x "$SENTRY_CLI" ]; then
+            SENTRY_CLI="$SENTRY_CLI_DIR/sentry-cli"
+          fi
+          "$SENTRY_CLI" debug-files upload --include-sources build/supacode.xcarchive/dSYMs
       - run: |
           cat > build/ExportOptions.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
@@ -216,6 +221,9 @@ jobs:
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SPARKLE/Autoupdate"
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SPARKLE/Sparkle"
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$APP_PATH/Contents/Frameworks/Sparkle.framework"
+          SENTRY_FRAMEWORK="$APP_PATH/Contents/Frameworks/Sentry.framework"
+          codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SENTRY_FRAMEWORK/Versions/A/Sentry"
+          codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SENTRY_FRAMEWORK"
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$APP_PATH"
 
           codesign -vvv --deep --strict "$APP_PATH"
@@ -349,3 +357,7 @@ jobs:
           else
             GH_TOKEN="$SUPACODE_SH_RELEASE_TOKEN" gh release create "$TAG" build/supacode.app.zip build/supacode.dmg build/appcast.xml --title "$TAG" --notes-file "$NOTES_FILE" -R "$RELEASE_REPO_SH"
           fi
+      - run: |
+          set -euo pipefail
+          curl -fsSL "https://supacode.sh/download/$TAG/supacode.app.zip" -o /dev/null
+          curl -fsSL "https://supacode.sh/download/$TAG/supacode.dmg" -o /dev/null
