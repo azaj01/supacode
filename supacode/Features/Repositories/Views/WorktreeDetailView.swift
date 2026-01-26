@@ -117,34 +117,32 @@ struct WorktreeDetailView: View {
       .padding(8)
       .help(openActionHelpText(for: openActionSelection, isDefault: true))
 
-      if showExtras {
-        Divider()
-          .frame(height: 16)
+      Divider()
+        .frame(height: 16)
 
-        Menu {
-          ForEach(OpenWorktreeAction.allCases) { action in
-            let isDefault = action == openActionSelection
-            Button {
-              store.send(.openActionSelectionChanged(action))
-              store.send(.openWorktree(action))
-            } label: {
-              OpenWorktreeActionMenuLabelView(action: action, shortcutHint: nil)
-            }
-            .buttonStyle(.plain)
-            .help(openActionHelpText(for: action, isDefault: isDefault))
+      Menu {
+        ForEach(OpenWorktreeAction.allCases) { action in
+          let isDefault = action == openActionSelection
+          Button {
+            store.send(.openActionSelectionChanged(action))
+            store.send(.openWorktree(action))
+          } label: {
+            OpenWorktreeActionMenuLabelView(action: action, shortcutHint: nil)
           }
-        } label: {
-          Image(systemName: "chevron.down")
-            .font(.system(size: 8))
-            .accessibilityLabel("Open in menu")
+          .buttonStyle(.plain)
+          .help(openActionHelpText(for: action, isDefault: isDefault))
         }
-        .buttonStyle(.borderless)
-        .padding(8)
-        .imageScale(.small)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .help("Open in... (no shortcut)")
+      } label: {
+        Image(systemName: "chevron.down")
+          .font(.system(size: 8))
+          .accessibilityLabel("Open in menu")
       }
+      .buttonStyle(.borderless)
+      .padding(8)
+      .imageScale(.small)
+      .menuIndicator(.hidden)
+      .fixedSize()
+      .help("Open in... (no shortcut)")
     }
   }
 
