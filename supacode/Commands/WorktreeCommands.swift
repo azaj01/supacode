@@ -6,6 +6,8 @@ struct WorktreeCommands: Commands {
   @ObservedObject private var viewStore: ViewStore<RepositoriesFeature.State, RepositoriesFeature.Action>
   @FocusedValue(\.openSelectedWorktreeAction) private var openSelectedWorktreeAction
   @FocusedValue(\.removeWorktreeAction) private var removeWorktreeAction
+  @FocusedValue(\.runScriptAction) private var runScriptAction
+  @FocusedValue(\.stopRunScriptAction) private var stopRunScriptAction
 
   init(store: StoreOf<RepositoriesFeature>) {
     self.store = store
@@ -60,6 +62,25 @@ struct WorktreeCommands: Commands {
         modifiers: AppShortcuts.refreshWorktrees.modifiers
       )
       .help("Refresh Worktrees (\(AppShortcuts.refreshWorktrees.display))")
+      Divider()
+      Button("Run Script") {
+        runScriptAction?()
+      }
+      .keyboardShortcut(
+        AppShortcuts.runScript.keyEquivalent,
+        modifiers: AppShortcuts.runScript.modifiers
+      )
+      .help("Run Script (\(AppShortcuts.runScript.display))")
+      .disabled(runScriptAction == nil)
+      Button("Stop Script") {
+        stopRunScriptAction?()
+      }
+      .keyboardShortcut(
+        AppShortcuts.stopRunScript.keyEquivalent,
+        modifiers: AppShortcuts.stopRunScript.modifiers
+      )
+      .help("Stop Script (\(AppShortcuts.stopRunScript.display))")
+      .disabled(stopRunScriptAction == nil)
     }
   }
 
@@ -108,4 +129,22 @@ extension FocusedValues {
     get { self[RemoveWorktreeActionKey.self] }
     set { self[RemoveWorktreeActionKey.self] = newValue }
   }
+
+  var runScriptAction: (() -> Void)? {
+    get { self[RunScriptActionKey.self] }
+    set { self[RunScriptActionKey.self] = newValue }
+  }
+
+  var stopRunScriptAction: (() -> Void)? {
+    get { self[StopRunScriptActionKey.self] }
+    set { self[StopRunScriptActionKey.self] = newValue }
+  }
+}
+
+private struct RunScriptActionKey: FocusedValueKey {
+  typealias Value = () -> Void
+}
+
+private struct StopRunScriptActionKey: FocusedValueKey {
+  typealias Value = () -> Void
 }

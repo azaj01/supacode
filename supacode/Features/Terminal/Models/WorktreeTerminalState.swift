@@ -14,6 +14,7 @@ final class WorktreeTerminalState {
   private var surfaces: [UUID: GhosttySurfaceView] = [:]
   private var focusedSurfaceIdByTab: [TerminalTabID: UUID] = [:]
   private var tabIsRunningById: [TerminalTabID: Bool] = [:]
+  private var runScriptTabId: TerminalTabID?
   private var pendingSetupScript: Bool
   private var lastReportedTaskStatus: WorktreeTaskStatus?
   private var lastEmittedFocusSurfaceId: UUID?
@@ -26,6 +27,7 @@ final class WorktreeTerminalState {
   var onTabClosed: (() -> Void)?
   var onFocusChanged: ((UUID) -> Void)?
   var onTaskStatusChanged: ((WorktreeTaskStatus) -> Void)?
+  var onRunScriptStatusChanged: ((Bool) -> Void)?
 
   init(runtime: GhosttyRuntime, worktree: Worktree, runSetupScript: Bool = false) {
     self.runtime = runtime
@@ -51,12 +53,52 @@ final class WorktreeTerminalState {
   @discardableResult
   func createTab(focusing: Bool = true) -> TerminalTabID? {
     let title = "\(worktree.name) \(nextTabIndex())"
-    let tabId = tabManager.createTab(title: title, icon: "terminal")
     let resolvedInput = setupScriptInput(shouldRun: pendingSetupScript)
     if pendingSetupScript {
       pendingSetupScript = false
     }
-    let tree = splitTree(for: tabId, initialInput: resolvedInput)
+    return createTab(
+      title: title,
+      icon: "terminal",
+      isTitleLocked: false,
+      initialInput: resolvedInput,
+      focusing: focusing
+    )
+  }
+
+  @discardableResult
+  func runScript(_ script: String) -> TerminalTabID? {
+    guard let input = runScriptInput(script) else { return nil }
+    if let existing = runScriptTabId {
+      closeTab(existing)
+    }
+    let tabId = createTab(
+      title: "RUN SCRIPT",
+      icon: "play.fill",
+      isTitleLocked: true,
+      initialInput: input,
+      focusing: true
+    )
+    setRunScriptTabId(tabId)
+    return tabId
+  }
+
+  @discardableResult
+  func stopRunScript() -> Bool {
+    guard let runScriptTabId else { return false }
+    closeTab(runScriptTabId)
+    return true
+  }
+
+  private func createTab(
+    title: String,
+    icon: String?,
+    isTitleLocked: Bool,
+    initialInput: String?,
+    focusing: Bool
+  ) -> TerminalTabID? {
+    let tabId = tabManager.createTab(title: title, icon: icon, isTitleLocked: isTitleLocked)
+    let tree = splitTree(for: tabId, initialInput: initialInput)
     tabIsRunningById[tabId] = false
     if focusing, let surface = tree.root?.leftmostLeaf() {
       focusSurface(surface, in: tabId)
@@ -120,6 +162,7 @@ final class WorktreeTerminalState {
   }
 
   func closeTab(_ tabId: TerminalTabID) {
+    let wasRunScriptTab = tabId == runScriptTabId
     removeTree(for: tabId)
     tabManager.closeTab(tabId)
     if let selected = tabManager.selectedTabId {
@@ -128,6 +171,9 @@ final class WorktreeTerminalState {
       lastEmittedFocusSurfaceId = nil
     }
     emitTaskStatusIfChanged()
+    if wasRunScriptTab {
+      setRunScriptTabId(nil)
+    }
     onTabClosed?()
   }
 
@@ -280,6 +326,7 @@ final class WorktreeTerminalState {
     trees.removeAll()
     focusedSurfaceIdByTab.removeAll()
     tabIsRunningById.removeAll()
+    setRunScriptTabId(nil)
     tabManager.closeAll()
   }
 
@@ -306,6 +353,26 @@ final class WorktreeTerminalState {
       return script
     }
     return "\(script)\n"
+  }
+
+  private func runScriptInput(_ script: String) -> String? {
+    let trimmed = script.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed.isEmpty {
+      return nil
+    }
+    if script.hasSuffix("\n") {
+      return script
+    }
+    return "\(script)\n"
+  }
+
+  private func setRunScriptTabId(_ tabId: TerminalTabID?) {
+    let wasRunning = runScriptTabId != nil
+    runScriptTabId = tabId
+    let isRunning = tabId != nil
+    if wasRunning != isRunning {
+      onRunScriptStatusChanged?(isRunning)
+    }
   }
 
   private func createSurface(tabId: TerminalTabID, initialInput: String?) -> GhosttySurfaceView {
@@ -524,6 +591,9 @@ final class WorktreeTerminalState {
       trees.removeValue(forKey: tabId)
       focusedSurfaceIdByTab.removeValue(forKey: tabId)
       tabManager.closeTab(tabId)
+      if tabId == runScriptTabId {
+        setRunScriptTabId(nil)
+      }
       return
     }
     trees[tabId] = newTree

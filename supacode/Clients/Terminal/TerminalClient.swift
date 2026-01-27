@@ -7,6 +7,8 @@ struct TerminalClient {
 
   enum Command: Equatable {
     case createTab(Worktree)
+    case runScript(Worktree, script: String)
+    case stopRunScript(Worktree)
     case closeFocusedTab(Worktree)
     case closeFocusedSurface(Worktree)
     case startSearch(Worktree)
@@ -26,6 +28,7 @@ struct TerminalClient {
     case tabClosed(worktreeID: Worktree.ID)
     case focusChanged(worktreeID: Worktree.ID, surfaceID: UUID)
     case taskStatusChanged(worktreeID: Worktree.ID, status: WorktreeTaskStatus)
+    case runScriptStatusChanged(worktreeID: Worktree.ID, isRunning: Bool)
   }
 }
 

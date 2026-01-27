@@ -17,6 +17,7 @@ struct RepositorySettingsFeature {
   enum Action: Equatable {
     case task
     case setSetupScript(String)
+    case setRunScript(String)
   }
 
   @Dependency(\.repositorySettingsClient) private var repositorySettingsClient
@@ -31,6 +32,19 @@ struct RepositorySettingsFeature {
       case .setSetupScript(let script):
         state.settings.setupScript = script
         repositorySettingsClient.save(state.settings, state.rootURL)
+        NotificationCenter.default.post(
+          name: Notification.Name("repositorySettingsChanged"),
+          object: state.rootURL
+        )
+        return .none
+
+      case .setRunScript(let script):
+        state.settings.runScript = script
+        repositorySettingsClient.save(state.settings, state.rootURL)
+        NotificationCenter.default.post(
+          name: Notification.Name("repositorySettingsChanged"),
+          object: state.rootURL
+        )
         return .none
       }
     }

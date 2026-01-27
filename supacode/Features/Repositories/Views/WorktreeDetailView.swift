@@ -44,6 +44,15 @@ struct WorktreeDetailView: View {
     let endSearchAction: (() -> Void)? = hasActiveWorktree
       ? { store.send(.endSearch) }
       : nil
+    let runScriptEnabled = hasActiveWorktree
+      && !state.selectedRunScript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    let runScriptIsRunning = selectedWorktree.flatMap { state.runScriptStatusByWorktreeID[$0.id] } == true
+    let runScriptAction: (() -> Void)? = runScriptEnabled
+      ? { store.send(.runScript) }
+      : nil
+    let stopRunScriptAction: (() -> Void)? = runScriptIsRunning
+      ? { store.send(.stopRunScript) }
+      : nil
     let navigationTitle = hasActiveWorktree
       ? ""
       : (selectedWorktree?.name ?? loadingInfo?.name ?? "Supacode")
@@ -77,12 +86,14 @@ struct WorktreeDetailView: View {
     .navigationTitle(navigationTitle)
     .toolbar {
       if hasActiveWorktree, let selectedWorktree {
-        worktreeToolbar(
-          worktreeID: selectedWorktree.id,
+        let toolbarState = WorktreeToolbarState(
           branchName: selectedWorktree.name,
+          runScriptEnabled: runScriptEnabled,
+          runScriptIsRunning: runScriptIsRunning,
           openActionSelection: openActionSelection,
           showExtras: commandKeyObserver.isPressed
         )
+        worktreeToolbar(worktreeID: selectedWorktree.id, toolbarState: toolbarState)
       }
     }
     let actions = FocusedActions(
@@ -94,7 +105,9 @@ struct WorktreeDetailView: View {
       searchSelection: searchSelectionAction,
       navigateSearchNext: navigateSearchNextAction,
       navigateSearchPrevious: navigateSearchPreviousAction,
-      endSearch: endSearchAction
+      endSearch: endSearchAction,
+      runScript: runScriptAction,
+      stopRunScript: stopRunScriptAction
     )
     return applyFocusedActions(content: content, actions: actions)
   }
@@ -113,6 +126,8 @@ struct WorktreeDetailView: View {
       .focusedSceneValue(\.navigateSearchNextAction, actions.navigateSearchNext)
       .focusedSceneValue(\.navigateSearchPreviousAction, actions.navigateSearchPrevious)
       .focusedSceneValue(\.endSearchAction, actions.endSearch)
+      .focusedSceneValue(\.runScriptAction, actions.runScript)
+      .focusedSceneValue(\.stopRunScriptAction, actions.stopRunScript)
   }
 
   private struct FocusedActions {
@@ -125,6 +140,38 @@ struct WorktreeDetailView: View {
     let navigateSearchNext: (() -> Void)?
     let navigateSearchPrevious: (() -> Void)?
     let endSearch: (() -> Void)?
+    let runScript: (() -> Void)?
+    let stopRunScript: (() -> Void)?
+  }
+
+  private struct WorktreeToolbarState {
+    let branchName: String
+    let runScriptEnabled: Bool
+    let runScriptIsRunning: Bool
+    let runScriptHelpText: String
+    let stopRunScriptHelpText: String
+    let openActionSelection: OpenWorktreeAction
+    let showExtras: Bool
+
+    init(
+      branchName: String,
+      runScriptEnabled: Bool,
+      runScriptIsRunning: Bool,
+      openActionSelection: OpenWorktreeAction,
+      showExtras: Bool
+    ) {
+      self.branchName = branchName
+      self.runScriptEnabled = runScriptEnabled
+      self.runScriptIsRunning = runScriptIsRunning
+      self.openActionSelection = openActionSelection
+      self.showExtras = showExtras
+      if runScriptEnabled {
+        runScriptHelpText = "Run Script (\(AppShortcuts.runScript.display))"
+      } else {
+        runScriptHelpText = "Run Script (\(AppShortcuts.runScript.display)) — Set Run Script in repo settings"
+      }
+      stopRunScriptHelpText = "Stop Script (\(AppShortcuts.stopRunScript.display))"
+    }
   }
 
   private func loadingInfo(
@@ -153,13 +200,17 @@ struct WorktreeDetailView: View {
   @ToolbarContentBuilder
   private func worktreeToolbar(
     worktreeID: Worktree.ID,
-    branchName: String,
-    openActionSelection: OpenWorktreeAction,
-    showExtras: Bool
+    toolbarState: WorktreeToolbarState
   ) -> some ToolbarContent {
     ToolbarItem(placement: .navigation) {
       WorktreeDetailTitleView(
-        branchName: branchName,
+        branchName: toolbarState.branchName,
+        runScriptEnabled: toolbarState.runScriptEnabled,
+        runScriptIsRunning: toolbarState.runScriptIsRunning,
+        runScriptHelpText: toolbarState.runScriptHelpText,
+        stopRunScriptHelpText: toolbarState.stopRunScriptHelpText,
+        runScriptAction: { store.send(.runScript) },
+        stopRunScriptAction: { store.send(.stopRunScript) },
         onSubmit: { newBranch in
           store.send(.repositories(.requestRenameBranch(worktreeID, newBranch)))
         }
@@ -170,7 +221,10 @@ struct WorktreeDetailView: View {
     }
     #if DEBUG
     ToolbarItem(placement: .automatic) {
-      openMenu(openActionSelection: openActionSelection, showExtras: showExtras)
+      openMenu(
+        openActionSelection: toolbarState.openActionSelection,
+        showExtras: toolbarState.showExtras
+      )
     }
 
     ToolbarItem(placement: .primaryAction) {
