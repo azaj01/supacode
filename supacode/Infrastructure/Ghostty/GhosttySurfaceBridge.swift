@@ -281,11 +281,15 @@ final class GhosttySurfaceBridge {
       } else if state.searchNeedle == nil {
         state.searchNeedle = ""
       }
+      state.searchTotal = nil
+      state.searchSelected = nil
       state.searchFocusCount += 1
       return true
 
     case GHOSTTY_ACTION_END_SEARCH:
       state.searchNeedle = nil
+      state.searchTotal = nil
+      state.searchSelected = nil
       return true
 
     case GHOSTTY_ACTION_SEARCH_TOTAL:
