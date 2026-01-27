@@ -30,6 +30,9 @@ struct WorktreeDetailView: View {
     let closeSurfaceAction: (() -> Void)? = hasActiveWorktree
       ? { store.send(.closeSurface) }
       : nil
+    let navigationTitle = hasActiveWorktree
+      ? ""
+      : (selectedWorktree?.name ?? loadingInfo?.name ?? "Supacode")
     Group {
       if let loadingInfo {
         WorktreeLoadingView(info: loadingInfo)
@@ -57,7 +60,7 @@ struct WorktreeDetailView: View {
         EmptyStateView(store: store.scope(state: \.repositories, action: \.repositories))
       }
     }
-    .navigationTitle(selectedWorktree?.name ?? loadingInfo?.name ?? "Supacode")
+    .navigationTitle(navigationTitle)
     .toolbar {
       if hasActiveWorktree, let selectedWorktree {
         worktreeToolbar(
@@ -104,13 +107,16 @@ struct WorktreeDetailView: View {
     openActionSelection: OpenWorktreeAction,
     showExtras: Bool
   ) -> some ToolbarContent {
-    ToolbarItem(placement: .principal) {
+    ToolbarItem(placement: .navigation) {
       WorktreeDetailTitleView(
         branchName: branchName,
         onSubmit: { newBranch in
-          store.send(.repositories(.requestSwitchBranch(worktreeID, newBranch)))
+          store.send(.repositories(.requestRenameBranch(worktreeID, newBranch)))
         }
       )
+    }
+    ToolbarItem(placement: .principal) {
+      XcodeStyleStatusView()
     }
     #if DEBUG
     ToolbarItem(placement: .automatic) {

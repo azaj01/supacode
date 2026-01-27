@@ -67,7 +67,7 @@ struct RepositoriesFeatureTests {
     }
   }
 
-  @Test func requestSwitchBranchWithEmptyNameShowsAlert() async {
+  @Test func requestRenameBranchWithEmptyNameShowsAlert() async {
     let worktree = makeWorktree(id: "/tmp/wt", name: "eagle")
     let repository = makeRepository(id: "/tmp/repo", worktrees: [worktree])
     let store = TestStore(initialState: RepositoriesFeature.State(repositories: [repository])) {
@@ -81,10 +81,10 @@ struct RepositoriesFeatureTests {
         TextState("OK")
       }
     } message: {
-      TextState("Enter a branch name to switch.")
+      TextState("Enter a branch name to rename.")
     }
 
-    await store.send(.requestSwitchBranch(worktree.id, " ")) {
+    await store.send(.requestRenameBranch(worktree.id, " ")) {
       $0.alert = expectedAlert
     }
   }
