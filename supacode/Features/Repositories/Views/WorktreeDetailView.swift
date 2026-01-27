@@ -186,7 +186,7 @@ struct WorktreeDetailView: View {
   }
 
   @ToolbarContentBuilder
-  private func worktreeToolbar(
+  private func x(
     worktreeID: Worktree.ID,
     toolbarState: WorktreeToolbarState
   ) -> some ToolbarContent {
@@ -362,38 +362,43 @@ private struct WorktreeToolbarPreview: View {
         .frame(width: 800, height: 400)
         .navigationTitle("")
         .toolbar {
-          ToolbarItem(placement: .navigation) {
-            WorktreeDetailTitleView(branchName: branchName, onSubmit: { _ in })
-          }
-          ToolbarItem(placement: .principal) {
-            if let prModel {
-              PullRequestStatusButton(model: prModel).padding(.horizontal)
-            } else {
-              XcodeStyleStatusView().padding(.horizontal)
-            }
-          }
-          ToolbarItem(placement: .status) {
-            RunScriptToolbarButton(
-              isRunning: runScriptIsRunning,
-              isEnabled: runScriptEnabled,
-              runHelpText: "Run Script (⌘R)",
-              stopHelpText: "Stop Script (⌘.)",
-              runShortcut: "⌘R",
-              stopShortcut: "⌘.",
-              runAction: {},
-              stopAction: {}
-            )
-          }
-          ToolbarItem(placement: .automatic) {
-            openMenuPreview(openActionSelection: openActionSelection, showExtras: showExtras)
-          }
+          worktreeToolbarContent
         }
     }
     .environment(CommandKeyObserver())
   }
 
+  @ToolbarContentBuilder
+  private var worktreeToolbarContent: some ToolbarContent {
+    ToolbarItem(placement: .navigation) {
+      WorktreeDetailTitleView(branchName: branchName, onSubmit: { _ in })
+    }
+    ToolbarItem(placement: .principal) {
+      if let prModel {
+        PullRequestStatusButton(model: prModel).padding(.horizontal)
+      } else {
+        XcodeStyleStatusView().padding(.horizontal)
+      }
+    }
+    ToolbarItem(placement: .status) {
+      RunScriptToolbarButton(
+        isRunning: runScriptIsRunning,
+        isEnabled: runScriptEnabled,
+        runHelpText: "Run Script (⌘R)",
+        stopHelpText: "Stop Script (⌘.)",
+        runShortcut: "⌘R",
+        stopShortcut: "⌘.",
+        runAction: {},
+        stopAction: {}
+      )
+    }
+    ToolbarItem(placement: .automatic) {
+      openMenuContent
+    }
+  }
+
   @ViewBuilder
-  private func openMenuPreview(openActionSelection: OpenWorktreeAction, showExtras: Bool) -> some View {
+  private var openMenuContent: some View {
     let availableActions = OpenWorktreeAction.availableCases
     let resolvedOpenActionSelection = OpenWorktreeAction.availableSelection(openActionSelection)
     HStack(spacing: 0) {
