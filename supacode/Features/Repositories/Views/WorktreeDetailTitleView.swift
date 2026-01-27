@@ -31,26 +31,27 @@ struct WorktreeDetailTitleView: View {
       .task { isFocused = true }
       .help("Rename branch (Return to confirm)")
     } else {
-      HStack(spacing: 6) {
-        Image(systemName: "arrow.trianglehead.branch")
-          .foregroundStyle(.secondary)
-          .accessibilityHidden(true)
-        Text(branchName)
+      Button {
+        beginEditing()
+      } label: {
+        HStack(spacing: 6) {
+          Image(systemName: "arrow.trianglehead.branch")
+            .foregroundStyle(.secondary)
+            .accessibilityHidden(true)
+          Text(branchName)
+        }
+        .font(.headline)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
       }
-      .font(.headline)
-      .padding(.horizontal, 8)
-      .padding(.vertical, 4)
-      .contentShape(Rectangle())
-      .onTapGesture { beginEditing() }
-      .accessibilityAddTraits(.isButton)
-      .help("Rename branch (no shortcut)")
+      .buttonStyle(.plain)
+      .help("Tap to rename branch")
     }
   }
 
   private func beginEditing() {
     draftName = branchName
     isEditing = true
-    isFocused = true
   }
 
   private func cancel() {
