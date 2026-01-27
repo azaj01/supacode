@@ -128,6 +128,10 @@ final class WorktreeTerminalManager {
     states[worktreeID]?.focusedTaskStatus
   }
 
+  func isRunScriptRunning(for worktreeID: Worktree.ID) -> Bool {
+    states[worktreeID]?.isRunScriptRunning == true
+  }
+
   func setNotificationsEnabled(_ enabled: Bool) {
     notificationsEnabled = enabled
     for state in states.values {

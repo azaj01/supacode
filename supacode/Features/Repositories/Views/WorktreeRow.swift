@@ -7,6 +7,7 @@ struct WorktreeRow: View {
   let isMainWorktree: Bool
   let isLoading: Bool
   let taskStatus: WorktreeTaskStatus?
+  let isRunScriptRunning: Bool
   let showsNotificationIndicator: Bool
   let shortcutHint: String?
 
@@ -53,13 +54,13 @@ struct WorktreeRow: View {
           .monospaced()
       }
       Spacer(minLength: 8)
-      if taskStatus == .running {
+      if isRunScriptRunning {
         Image(systemName: "play.fill")
           .font(.caption)
           .monospaced()
           .foregroundStyle(.green)
-          .help("Task running")
-          .accessibilityLabel("Task running")
+          .help("Run script active")
+          .accessibilityLabel("Run script active")
       }
       if isMerged {
         WorktreePullRequestBadge(text: "MERGED", color: mergedColor, help: "Pull request merged")
