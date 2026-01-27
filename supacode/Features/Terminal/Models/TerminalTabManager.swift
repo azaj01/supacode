@@ -6,8 +6,8 @@ final class TerminalTabManager {
   var tabs: [TerminalTabItem] = []
   var selectedTabId: TerminalTabID?
 
-  func createTab(title: String, icon: String?) -> TerminalTabID {
-    let tab = TerminalTabItem(title: title, icon: icon)
+  func createTab(title: String, icon: String?, isTitleLocked: Bool = false) -> TerminalTabID {
+    let tab = TerminalTabItem(title: title, icon: icon, isTitleLocked: isTitleLocked)
     if let selectedTabId,
       let selectedIndex = tabs.firstIndex(where: { $0.id == selectedTabId })
     {
@@ -26,6 +26,7 @@ final class TerminalTabManager {
 
   func updateTitle(_ id: TerminalTabID, title: String) {
     guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
+    guard !tabs[index].isTitleLocked else { return }
     tabs[index].title = title
   }
 

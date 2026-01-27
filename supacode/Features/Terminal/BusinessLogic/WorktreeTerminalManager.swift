@@ -17,6 +17,10 @@ final class WorktreeTerminalManager {
     switch command {
     case .createTab(let worktree):
       createTab(in: worktree)
+    case .runScript(let worktree, let script):
+      _ = state(for: worktree).runScript(script)
+    case .stopRunScript(let worktree):
+      _ = state(for: worktree).stopRunScript()
     case .closeFocusedTab(let worktree):
       _ = closeFocusedTab(in: worktree)
     case .closeFocusedSurface(let worktree):
@@ -80,6 +84,9 @@ final class WorktreeTerminalManager {
     }
     state.onTaskStatusChanged = { [weak self] status in
       self?.emit(.taskStatusChanged(worktreeID: worktree.id, status: status))
+    }
+    state.onRunScriptStatusChanged = { [weak self] isRunning in
+      self?.emit(.runScriptStatusChanged(worktreeID: worktree.id, isRunning: isRunning))
     }
     states[worktree.id] = state
     return state

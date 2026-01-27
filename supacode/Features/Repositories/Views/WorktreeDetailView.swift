@@ -45,6 +45,11 @@ struct WorktreeDetailView: View {
     let endSearchAction: (() -> Void)? = hasActiveWorktree
       ? { store.send(.endSearch) }
       : nil
+    let runScriptEnabled = hasActiveWorktree
+      && !state.selectedRunScript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    let runScriptIsRunning = selectedWorktree.flatMap { state.runScriptStatusByWorktreeID[$0.id] } == true
+    let runScriptAction: (() -> Void)? = runScriptEnabled ? { store.send(.runScript) } : nil
+    let stopRunScriptAction: (() -> Void)? = runScriptIsRunning ? { store.send(.stopRunScript) } : nil
     let navigationTitle = hasActiveWorktree
       ? ""
       : (selectedWorktree?.name ?? loadingInfo?.name ?? "Supacode")
@@ -78,13 +83,15 @@ struct WorktreeDetailView: View {
     .navigationTitle(navigationTitle)
     .toolbar {
       if hasActiveWorktree, let selectedWorktree {
-        worktreeToolbar(
-          worktreeID: selectedWorktree.id,
+        let toolbarState = WorktreeToolbarState(
           branchName: selectedWorktree.name,
           worktreeInfoSnapshot: worktreeInfoSnapshot,
           openActionSelection: openActionSelection,
-          showExtras: commandKeyObserver.isPressed
+          showExtras: commandKeyObserver.isPressed,
+          runScriptEnabled: runScriptEnabled,
+          runScriptIsRunning: runScriptIsRunning
         )
+        worktreeToolbar(worktreeID: selectedWorktree.id, toolbarState: toolbarState)
       }
     }
     let actions = FocusedActions(
@@ -96,7 +103,9 @@ struct WorktreeDetailView: View {
       searchSelection: searchSelectionAction,
       navigateSearchNext: navigateSearchNextAction,
       navigateSearchPrevious: navigateSearchPreviousAction,
-      endSearch: endSearchAction
+      endSearch: endSearchAction,
+      runScript: runScriptAction,
+      stopRunScript: stopRunScriptAction
     )
     return applyFocusedActions(content: content, actions: actions)
   }
@@ -115,6 +124,8 @@ struct WorktreeDetailView: View {
       .focusedSceneValue(\.navigateSearchNextAction, actions.navigateSearchNext)
       .focusedSceneValue(\.navigateSearchPreviousAction, actions.navigateSearchPrevious)
       .focusedSceneValue(\.endSearchAction, actions.endSearch)
+      .focusedSceneValue(\.runScriptAction, actions.runScript)
+      .focusedSceneValue(\.stopRunScriptAction, actions.stopRunScript)
   }
 
   private struct FocusedActions {
@@ -127,6 +138,28 @@ struct WorktreeDetailView: View {
     let navigateSearchNext: (() -> Void)?
     let navigateSearchPrevious: (() -> Void)?
     let endSearch: (() -> Void)?
+    let runScript: (() -> Void)?
+    let stopRunScript: (() -> Void)?
+  }
+
+  private struct WorktreeToolbarState {
+    let branchName: String
+    let worktreeInfoSnapshot: WorktreeInfoSnapshot?
+    let openActionSelection: OpenWorktreeAction
+    let showExtras: Bool
+    let runScriptEnabled: Bool
+    let runScriptIsRunning: Bool
+
+    var runScriptHelpText: String {
+      if runScriptEnabled {
+        return "Run Script (\(AppShortcuts.runScript.display))"
+      }
+      return "Run Script (\(AppShortcuts.runScript.display)) — Set Run Script in repo settings"
+    }
+
+    var stopRunScriptHelpText: String {
+      "Stop Script (\(AppShortcuts.stopRunScript.display))"
+    }
   }
 
   private func loadingInfo(
@@ -155,33 +188,41 @@ struct WorktreeDetailView: View {
   @ToolbarContentBuilder
   private func worktreeToolbar(
     worktreeID: Worktree.ID,
-    branchName: String,
-    worktreeInfoSnapshot: WorktreeInfoSnapshot?,
-    openActionSelection: OpenWorktreeAction,
-    showExtras: Bool
+    toolbarState: WorktreeToolbarState
   ) -> some ToolbarContent {
     ToolbarItem(placement: .navigation) {
       WorktreeDetailTitleView(
-        branchName: branchName,
+        branchName: toolbarState.branchName,
         onSubmit: { newBranch in
           store.send(.repositories(.requestRenameBranch(worktreeID, newBranch)))
         }
       )
     }
     ToolbarItem(placement: .principal) {
-      if let model = PullRequestStatusModel(snapshot: worktreeInfoSnapshot) {
+      if let model = PullRequestStatusModel(snapshot: toolbarState.worktreeInfoSnapshot) {
         PullRequestStatusButton(model: model)
       } else {
         XcodeStyleStatusView()
       }
     }
+    ToolbarItem(placement: .primaryAction) {
+      RunScriptToolbarButton(
+        isRunning: toolbarState.runScriptIsRunning,
+        isEnabled: toolbarState.runScriptEnabled,
+        runHelpText: toolbarState.runScriptHelpText,
+        stopHelpText: toolbarState.stopRunScriptHelpText,
+        runShortcut: AppShortcuts.runScript.display,
+        stopShortcut: AppShortcuts.stopRunScript.display,
+        runAction: { store.send(.runScript) },
+        stopAction: { store.send(.stopRunScript) }
+      )
+    }
     #if DEBUG
     ToolbarItem(placement: .automatic) {
-      openMenu(openActionSelection: openActionSelection, showExtras: showExtras)
-    }
-
-    ToolbarItem(placement: .primaryAction) {
-      Button("PR Button") { }.padding(.horizontal)
+      openMenu(
+        openActionSelection: toolbarState.openActionSelection,
+        showExtras: toolbarState.showExtras
+      )
     }
     #endif
   }
@@ -237,5 +278,73 @@ struct WorktreeDetailView: View {
     isDefault
       ? "\(action.title) (\(AppShortcuts.openFinder.display))"
       : action.title
+  }
+}
+
+private struct RunScriptToolbarButton: View {
+  let isRunning: Bool
+  let isEnabled: Bool
+  let runHelpText: String
+  let stopHelpText: String
+  let runShortcut: String
+  let stopShortcut: String
+  let runAction: () -> Void
+  let stopAction: () -> Void
+  @Environment(CommandKeyObserver.self) private var commandKeyObserver
+
+  var body: some View {
+    if isRunning {
+      button(config: RunScriptButtonConfig(
+        title: "Stop",
+        systemImage: "stop.fill",
+        helpText: stopHelpText,
+        shortcut: stopShortcut,
+        isEnabled: true,
+        action: stopAction
+      ))
+    } else {
+      button(config: RunScriptButtonConfig(
+        title: "Run",
+        systemImage: "play.fill",
+        helpText: runHelpText,
+        shortcut: runShortcut,
+        isEnabled: isEnabled,
+        action: runAction
+      ))
+    }
+  }
+
+  @ViewBuilder
+  private func button(config: RunScriptButtonConfig) -> some View {
+    Button {
+      config.action()
+    } label: {
+      HStack(spacing: 6) {
+        Image(systemName: config.systemImage)
+          .accessibilityHidden(true)
+        if commandKeyObserver.isPressed {
+          ShortcutHintView(text: config.shortcut, color: .secondary)
+        } else {
+          Text(config.title)
+        }
+      }
+    }
+    .font(.caption)
+    .monospaced()
+    .padding(.horizontal, 10)
+    .padding(.vertical, 6)
+    .background(.quaternary.opacity(0.2), in: Capsule())
+    .buttonStyle(.plain)
+    .help(config.helpText)
+    .disabled(!config.isEnabled)
+  }
+
+  private struct RunScriptButtonConfig {
+    let title: String
+    let systemImage: String
+    let helpText: String
+    let shortcut: String
+    let isEnabled: Bool
+    let action: () -> Void
   }
 }

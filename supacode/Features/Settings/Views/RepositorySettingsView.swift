@@ -34,6 +34,34 @@ struct RepositorySettingsView: View {
             .foregroundStyle(.secondary)
         }
       }
+      Section {
+        ZStack(alignment: .topLeading) {
+          TextEditor(
+            text: Binding(
+              get: { store.settings.runScript },
+              set: { store.send(.setRunScript($0)) }
+            )
+          )
+          .font(.body)
+          .monospaced()
+          .frame(minHeight: 120)
+          if store.settings.runScript.isEmpty {
+            Text("echo \"Run script\"")
+              .foregroundStyle(.secondary)
+              .padding(.top, 8)
+              .padding(.leading, 6)
+              .font(.body)
+              .monospaced()
+              .allowsHitTesting(false)
+          }
+        }
+      } header: {
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Run Script")
+          Text("Run script launched on demand from the toolbar")
+            .foregroundStyle(.secondary)
+        }
+      }
     }
     .formStyle(.grouped)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
