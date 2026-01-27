@@ -39,9 +39,7 @@ struct WorktreeRow: View {
       VStack(alignment: .leading, spacing: 2) {
         Text(name)
           .monospaced()
-        if let info {
-          WorktreeRowInfoView(info: info)
-        }
+        WorktreeRowInfoView(info: info)
       }
       Spacer(minLength: 8)
       if let shortcutHint {
@@ -52,11 +50,11 @@ struct WorktreeRow: View {
 }
 
 private struct WorktreeRowInfoView: View {
-  let info: WorktreeInfoEntry
+  let info: WorktreeInfoEntry?
 
   var body: some View {
     HStack {
-      if let addedLines = info.addedLines, let removedLines = info.removedLines {
+      if let info, let addedLines = info.addedLines, let removedLines = info.removedLines {
         HStack {
           Text("+\(addedLines)")
             .foregroundStyle(.green)
@@ -64,12 +62,13 @@ private struct WorktreeRowInfoView: View {
             .foregroundStyle(.red)
         }
       }
-      if let pullRequestNumber = info.pullRequestNumber {
+      if let info, let pullRequestNumber = info.pullRequestNumber {
         Text("PR: \(pullRequestNumber)")
           .foregroundStyle(.secondary)
       }
     }
     .font(.caption)
     .monospaced()
+    .frame(minHeight: 14)
   }
 }
