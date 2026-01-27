@@ -229,11 +229,7 @@ struct AppFeature {
         return .none
       }
     }
-    #if DEBUG
-    core._printChanges(.customDump)
-    #else
     core.printActionLabels()
-    #endif
     Scope(state: \.repositories, action: \.repositories) {
       RepositoriesFeature()
     }

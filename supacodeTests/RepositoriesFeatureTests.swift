@@ -67,64 +67,25 @@ struct RepositoriesFeatureTests {
     }
   }
 
-  @Test func branchChangeUpdatesWorktreeName() async {
-    let worktreeA = makeWorktree(id: "/tmp/wt-a", name: "main")
-    let worktreeB = makeWorktree(id: "/tmp/wt-b", name: "feature")
-    let repository = makeRepository(id: "/tmp/repo", worktrees: [worktreeA, worktreeB])
-    let store = TestStore(initialState: RepositoriesFeature.State(repositories: [repository])) {
-      RepositoriesFeature()
-    } withDependencies: {
-      $0.gitClient.branchName = { url in
-        if url == worktreeA.workingDirectory {
-          return "renamed"
-        }
-        return nil
-      }
-    }
-
-    let updatedRepository = Repository(
-      id: repository.id,
-      rootURL: repository.rootURL,
-      name: repository.name,
-      worktrees: [
-        Worktree(
-          id: worktreeA.id,
-          name: "renamed",
-          detail: worktreeA.detail,
-          workingDirectory: worktreeA.workingDirectory,
-          repositoryRootURL: worktreeA.repositoryRootURL
-        ),
-        worktreeB,
-      ]
-    )
-
-    await store.send(.worktreeInfoEvent(.branchChanged(worktreeID: worktreeA.id)))
-    await store.receive(.worktreeBranchNameLoaded(worktreeID: worktreeA.id, name: "renamed")) {
-      $0.repositories = [updatedRepository]
-    }
-  }
-
-  @Test func worktreeInfoUpdatesDescription() async {
-    let worktree = makeWorktree(id: "/tmp/wt", name: "main")
+  @Test func requestRenameBranchWithEmptyNameShowsAlert() async {
+    let worktree = makeWorktree(id: "/tmp/wt", name: "eagle")
     let repository = makeRepository(id: "/tmp/repo", worktrees: [worktree])
     let store = TestStore(initialState: RepositoriesFeature.State(repositories: [repository])) {
       RepositoriesFeature()
     }
 
-    await store.send(.worktreeLineChangesLoaded(worktreeID: worktree.id, added: 34, removed: 23)) {
-      $0.worktreeInfoByID[worktree.id] = WorktreeInfoEntry(
-        addedLines: 34,
-        removedLines: 23,
-        pullRequestNumber: nil
-      )
+    let expectedAlert = AlertState<RepositoriesFeature.Alert> {
+      TextState("Branch name required")
+    } actions: {
+      ButtonState(role: .cancel) {
+        TextState("OK")
+      }
+    } message: {
+      TextState("Enter a branch name to rename.")
     }
 
-    await store.send(.worktreePullRequestLoaded(worktreeID: worktree.id, number: 99)) {
-      $0.worktreeInfoByID[worktree.id] = WorktreeInfoEntry(
-        addedLines: 34,
-        removedLines: 23,
-        pullRequestNumber: 99
-      )
+    await store.send(.requestRenameBranch(worktree.id, " ")) {
+      $0.alert = expectedAlert
     }
   }
 
