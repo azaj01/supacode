@@ -61,6 +61,7 @@ struct WorktreeDetailView: View {
     .toolbar {
       if hasActiveWorktree, let selectedWorktree {
         worktreeToolbar(
+          worktreeID: selectedWorktree.id,
           branchName: selectedWorktree.name,
           openActionSelection: openActionSelection,
           showExtras: commandKeyObserver.isPressed
@@ -98,35 +99,36 @@ struct WorktreeDetailView: View {
 
   @ToolbarContentBuilder
   private func worktreeToolbar(
+    worktreeID: Worktree.ID,
     branchName: String,
     openActionSelection: OpenWorktreeAction,
     showExtras: Bool
   ) -> some ToolbarContent {
     ToolbarItem(placement: .principal) {
-        XcodeStyleStatusView()
+      WorktreeDetailTitleView(
+        branchName: branchName,
+        onSubmit: { newBranch in
+          store.send(.repositories(.requestSwitchBranch(worktreeID, newBranch)))
+        }
+      )
     }
-      
-      #if DEBUG
-      ToolbarItem(placement: .automatic) {
-          openMenu(openActionSelection: openActionSelection, showExtras: showExtras)
+    #if DEBUG
+    ToolbarItem(placement: .automatic) {
+      openMenu(openActionSelection: openActionSelection, showExtras: showExtras)
+    }
 
-      }
-      
-      ToolbarItem(placement: .primaryAction) {
-          Button("PR Button") { }.padding(.horizontal)
-      }
-      
-      
-      ToolbarItem(placement: .secondaryAction) {
-          Button("secpond") { }.padding(.horizontal)
-      }
-      
-      ToolbarItem(placement: .status) {
-          Button("status") { }.padding(.horizontal)
-      }
-      #endif
+    ToolbarItem(placement: .primaryAction) {
+      Button("PR Button") { }.padding(.horizontal)
+    }
 
-      
+    ToolbarItem(placement: .secondaryAction) {
+      Button("secpond") { }.padding(.horizontal)
+    }
+
+    ToolbarItem(placement: .status) {
+      Button("status") { }.padding(.horizontal)
+    }
+    #endif
   }
 
   @ViewBuilder

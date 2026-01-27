@@ -67,6 +67,28 @@ struct RepositoriesFeatureTests {
     }
   }
 
+  @Test func requestSwitchBranchWithEmptyNameShowsAlert() async {
+    let worktree = makeWorktree(id: "/tmp/wt", name: "eagle")
+    let repository = makeRepository(id: "/tmp/repo", worktrees: [worktree])
+    let store = TestStore(initialState: RepositoriesFeature.State(repositories: [repository])) {
+      RepositoriesFeature()
+    }
+
+    let expectedAlert = AlertState<RepositoriesFeature.Alert> {
+      TextState("Branch name required")
+    } actions: {
+      ButtonState(role: .cancel) {
+        TextState("OK")
+      }
+    } message: {
+      TextState("Enter a branch name to switch.")
+    }
+
+    await store.send(.requestSwitchBranch(worktree.id, " ")) {
+      $0.alert = expectedAlert
+    }
+  }
+
   @Test func orderedWorktreeRowsAreGlobal() {
     let repoA = makeRepository(
       id: "/tmp/repo-a",

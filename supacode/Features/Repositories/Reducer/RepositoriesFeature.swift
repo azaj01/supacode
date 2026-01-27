@@ -33,6 +33,7 @@ struct RepositoriesFeature {
     case openRepositories([URL])
     case openRepositoriesFinished([Repository], errors: [String], failures: [String])
     case selectWorktree(Worktree.ID?)
+    case requestSwitchBranch(Worktree.ID, String)
     case createRandomWorktree
     case createRandomWorktreeInRepository(Repository.ID)
     case createRandomWorktreeSucceeded(
@@ -184,6 +185,33 @@ struct RepositoriesFeature {
         state.selectedWorktreeID = worktreeID
         let selectedWorktree = state.worktree(for: worktreeID)
         return .send(.delegate(.selectedWorktreeChanged(selectedWorktree)))
+
+      case .requestSwitchBranch(let worktreeID, let branchName):
+        guard let worktree = state.worktree(for: worktreeID) else { return .none }
+        let trimmed = branchName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+          state.alert = errorAlert(
+            title: "Branch name required",
+            message: "Enter a branch name to switch."
+          )
+          return .none
+        }
+        if trimmed.lowercased() == worktree.name.lowercased() {
+          return .none
+        }
+        return .run { send in
+          do {
+            try await gitClient.switchBranch(worktree.workingDirectory, trimmed)
+            await send(.reloadRepositories(animated: true))
+          } catch {
+            await send(
+              .presentAlert(
+                title: "Unable to switch branch",
+                message: error.localizedDescription
+              )
+            )
+          }
+        }
 
       case .createRandomWorktree:
         guard let repository = repositoryForWorktreeCreation(state) else {
