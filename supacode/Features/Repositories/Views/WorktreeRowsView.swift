@@ -38,6 +38,7 @@ struct WorktreeRowsView: View {
     shortcutHint: String?
   ) -> some View {
     let taskStatus = terminalManager.focusedTaskStatus(for: row.id)
+    let isRunScriptRunning = terminalManager.isRunScriptRunning(for: row.id)
     let isSelected = row.id == store.state.selectedWorktreeID
     let showsNotificationIndicator = !isSelected && terminalManager.hasUnseenNotifications(for: row.id)
     let displayName = row.isDeleting ? "\(row.name) (removing...)" : row.name
@@ -49,6 +50,7 @@ struct WorktreeRowsView: View {
         isMainWorktree: row.isMainWorktree,
         isLoading: row.isPending || row.isDeleting,
         taskStatus: taskStatus,
+        isRunScriptRunning: isRunScriptRunning,
         showsNotificationIndicator: showsNotificationIndicator,
         shortcutHint: shortcutHint
       )
@@ -85,6 +87,7 @@ struct WorktreeRowsView: View {
         isMainWorktree: row.isMainWorktree,
         isLoading: row.isPending || row.isDeleting,
         taskStatus: taskStatus,
+        isRunScriptRunning: isRunScriptRunning,
         showsNotificationIndicator: showsNotificationIndicator,
         shortcutHint: shortcutHint
       )

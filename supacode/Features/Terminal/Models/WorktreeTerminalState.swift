@@ -44,6 +44,10 @@ final class WorktreeTerminalState {
     return .idle
   }
 
+  var isRunScriptRunning: Bool {
+    runScriptTabId != nil
+  }
+
   func ensureInitialTab(focusing: Bool) {
     if tabManager.tabs.isEmpty {
       _ = createTab(focusing: focusing)
