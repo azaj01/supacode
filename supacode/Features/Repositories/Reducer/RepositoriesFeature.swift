@@ -68,7 +68,7 @@ struct RepositoriesFeature {
     case worktreeInfoEvent(WorktreeInfoWatcherClient.Event)
     case worktreeBranchNameLoaded(worktreeID: Worktree.ID, name: String)
     case worktreeLineChangesLoaded(worktreeID: Worktree.ID, added: Int, removed: Int)
-    case worktreePullRequestLoaded(worktreeID: Worktree.ID, number: Int?)
+    case worktreePullRequestLoaded(worktreeID: Worktree.ID, pullRequest: GithubPullRequest?)
     case alert(PresentationAction<Alert>)
     case delegate(Delegate)
   }
@@ -549,7 +549,7 @@ struct RepositoriesFeature {
             switch result {
             case .success(let pullRequest):
               await send(
-                .worktreePullRequestLoaded(worktreeID: worktreeID, number: pullRequest?.number)
+                .worktreePullRequestLoaded(worktreeID: worktreeID, pullRequest: pullRequest)
               )
             case .failure:
               return
@@ -570,10 +570,10 @@ struct RepositoriesFeature {
         )
         return .none
 
-      case .worktreePullRequestLoaded(let worktreeID, let number):
+      case .worktreePullRequestLoaded(let worktreeID, let pullRequest):
         updateWorktreePullRequest(
           worktreeID: worktreeID,
-          number: number,
+          pullRequest: pullRequest,
           state: &state
         )
         return .none
@@ -1005,11 +1005,11 @@ private func updateWorktreeLineChanges(
 
 private func updateWorktreePullRequest(
   worktreeID: Worktree.ID,
-  number: Int?,
+  pullRequest: GithubPullRequest?,
   state: inout RepositoriesFeature.State
 ) {
   var entry = state.worktreeInfoByID[worktreeID] ?? WorktreeInfoEntry()
-  entry.pullRequestNumber = number
+  entry.pullRequest = pullRequest
   if entry.isEmpty {
     state.worktreeInfoByID.removeValue(forKey: worktreeID)
   } else {
