@@ -169,16 +169,19 @@ struct WorktreeDetailView: View {
       )
     }
     ToolbarItem(placement: .principal) {
-      XcodeStyleStatusView()
-    }
-    if let model = PullRequestStatusModel(snapshot: worktreeInfoSnapshot) {
-      ToolbarItem(placement: .primaryAction) {
+      if let model = PullRequestStatusModel(snapshot: worktreeInfoSnapshot) {
         PullRequestStatusButton(model: model)
+      } else {
+        XcodeStyleStatusView()
       }
     }
     #if DEBUG
     ToolbarItem(placement: .automatic) {
       openMenu(openActionSelection: openActionSelection, showExtras: showExtras)
+    }
+
+    ToolbarItem(placement: .primaryAction) {
+      Button("PR Button") { }.padding(.horizontal)
     }
     #endif
   }
