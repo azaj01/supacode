@@ -9,7 +9,7 @@ struct XcodeStyleStatusView: View {
         .monospaced()
         .accessibilityHidden(true)
 
-      Text("Build Succeeded")
+      Text("All systems operational")
         .font(.system(size: 12))
         .monospaced()
         .foregroundStyle(.secondary)
