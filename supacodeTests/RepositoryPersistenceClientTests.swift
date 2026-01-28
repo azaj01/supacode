@@ -8,9 +8,6 @@ import Testing
 struct RepositoryPersistenceClientTests {
   @Test(.dependencies) func savesAndLoadsRootsAndPins() async throws {
     let storage = SettingsTestStorage()
-    let suiteName = "supacode.tests.\(UUID().uuidString)"
-    let userDefaults = UserDefaults(suiteName: suiteName) ?? .standard
-    defer { userDefaults.removePersistentDomain(forName: suiteName) }
 
     var initial = SettingsFile.default
     initial.global.appearanceMode = .dark
@@ -20,10 +17,16 @@ struct RepositoryPersistenceClientTests {
     let client = RepositoryPersistenceClient.liveValue
     let result = await withDependencies {
       $0.settingsFileStorage = storage.storage
-      $0.settingsUserDefaults = SettingsUserDefaults(userDefaults: userDefaults)
     } operation: {
-      await client.saveRoots(["/tmp/repo-a", "/tmp/repo-b"])
-      await client.savePinnedWorktreeIDs(["/tmp/repo-a/wt-1"])
+      await client.saveRoots([
+        "/tmp/repo-a",
+        "/tmp/repo-a",
+        "/tmp/repo-b/../repo-b",
+      ])
+      await client.savePinnedWorktreeIDs([
+        "/tmp/repo-a/wt-1",
+        "/tmp/repo-a/wt-1",
+      ])
       let roots = await client.loadRoots()
       let pinned = await client.loadPinnedWorktreeIDs()
       return (roots: roots, pinned: pinned)

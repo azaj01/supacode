@@ -12,23 +12,23 @@ extension RepositoryPersistenceClient: DependencyKey {
   static let liveValue: RepositoryPersistenceClient = {
     return RepositoryPersistenceClient(
       loadRoots: {
-        @Shared(.settingsFile) var settings: SettingsFile
-        return settings.repositoryRoots
+        @Shared(.repositoryRoots) var roots: [String]
+        return roots
       },
       saveRoots: { roots in
-        @Shared(.settingsFile) var settings: SettingsFile
-        $settings.withLock {
-          $0.repositoryRoots = roots
+        @Shared(.repositoryRoots) var sharedRoots: [String]
+        $sharedRoots.withLock {
+          $0 = roots
         }
       },
       loadPinnedWorktreeIDs: {
-        @Shared(.settingsFile) var settings: SettingsFile
-        return settings.pinnedWorktreeIDs
+        @Shared(.pinnedWorktreeIDs) var pinned: [Worktree.ID]
+        return pinned
       },
       savePinnedWorktreeIDs: { ids in
-        @Shared(.settingsFile) var settings: SettingsFile
-        $settings.withLock {
-          $0.pinnedWorktreeIDs = ids
+        @Shared(.pinnedWorktreeIDs) var sharedPinned: [Worktree.ID]
+        $sharedPinned.withLock {
+          $0 = ids
         }
       }
     )

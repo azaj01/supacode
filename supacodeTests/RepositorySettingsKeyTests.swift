@@ -9,14 +9,10 @@ import Testing
 struct RepositorySettingsKeyTests {
   @Test(.dependencies) func loadCreatesDefaultAndPersists() throws {
     let storage = SettingsTestStorage()
-    let suiteName = "supacode.tests.\(UUID().uuidString)"
-    let userDefaults = UserDefaults(suiteName: suiteName) ?? .standard
-    defer { userDefaults.removePersistentDomain(forName: suiteName) }
     let rootURL = URL(fileURLWithPath: "/tmp/repo")
 
     let settings = withDependencies {
       $0.settingsFileStorage = storage.storage
-      $0.settingsUserDefaults = SettingsUserDefaults(userDefaults: userDefaults)
     } operation: {
       @Shared(.repositorySettings(rootURL)) var repositorySettings: RepositorySettings
       return repositorySettings
@@ -33,16 +29,12 @@ struct RepositorySettingsKeyTests {
 
   @Test(.dependencies) func saveOverwritesExistingSettings() throws {
     let storage = SettingsTestStorage()
-    let suiteName = "supacode.tests.\(UUID().uuidString)"
-    let userDefaults = UserDefaults(suiteName: suiteName) ?? .standard
-    defer { userDefaults.removePersistentDomain(forName: suiteName) }
     let rootURL = URL(fileURLWithPath: "/tmp/repo")
 
     var settings = RepositorySettings.default
     settings.runScript = "echo updated"
     withDependencies {
       $0.settingsFileStorage = storage.storage
-      $0.settingsUserDefaults = SettingsUserDefaults(userDefaults: userDefaults)
     } operation: {
       @Shared(.repositorySettings(rootURL)) var repositorySettings: RepositorySettings
       $repositorySettings.withLock {
