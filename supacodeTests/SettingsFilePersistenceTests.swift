@@ -106,7 +106,7 @@ struct SettingsFilePersistenceTests {
   }
 }
 
-private final class MutableTestStorage: @unchecked Sendable {
+nonisolated private final class MutableTestStorage: @unchecked Sendable {
   private let lock = NSLock()
   private var data: Data?
   private let initialData: Data
