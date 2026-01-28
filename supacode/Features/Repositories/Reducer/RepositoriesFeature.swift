@@ -1086,15 +1086,8 @@ private func updateWorktreePullRequest(
   pullRequest: GithubPullRequest?,
   state: inout RepositoriesFeature.State
 ) {
-  let worktreeName = state.worktree(for: worktreeID)?.name
-  let resolvedPullRequest: GithubPullRequest?
-  if let pullRequest, let worktreeName, pullRequest.headRefName == worktreeName {
-    resolvedPullRequest = pullRequest
-  } else {
-    resolvedPullRequest = nil
-  }
   var entry = state.worktreeInfoByID[worktreeID] ?? WorktreeInfoEntry()
-  entry.pullRequest = resolvedPullRequest
+  entry.pullRequest = pullRequest
   if entry.isEmpty {
     state.worktreeInfoByID.removeValue(forKey: worktreeID)
   } else {
