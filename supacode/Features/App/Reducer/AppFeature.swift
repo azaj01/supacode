@@ -126,6 +126,7 @@ struct AppFeature {
         let cachedPullRequest = state.repositories.worktreeInfoByID[worktree.id]?.pullRequest
         let rootURL = worktree.repositoryRootURL
         let worktreeID = worktree.id
+        let repositorySettingsClient = repositorySettingsClient
         return .merge(
           .send(.worktreeInfo(.worktreeChanged(worktree, cachedPullRequest: cachedPullRequest))),
           .run { _ in
@@ -136,7 +137,7 @@ struct AppFeature {
             await worktreeInfoWatcher.send(.setSelectedWorktreeID(worktree.id))
           },
           .run { send in
-            let settings = await repositorySettingsClient.load(rootURL)
+            let settings = repositorySettingsClient.load(rootURL)
             await send(.worktreeSettingsLoaded(settings, worktreeID: worktreeID))
           }
         )
@@ -179,10 +180,11 @@ struct AppFeature {
         }
         let rootURL = worktree.repositoryRootURL
         let actionID = action.settingsID
+        let repositorySettingsClient = repositorySettingsClient
         return .run { _ in
-          var settings = await repositorySettingsClient.load(rootURL)
+          var settings = repositorySettingsClient.load(rootURL)
           settings.openActionID = actionID
-          await repositorySettingsClient.save(settings, rootURL)
+          repositorySettingsClient.save(settings, rootURL)
         }
 
       case .openSelectedWorktree:
@@ -223,8 +225,9 @@ struct AppFeature {
           return .none
         }
         let rootURL = worktree.repositoryRootURL
+        let repositorySettingsClient = repositorySettingsClient
         return .run { _ in
-          let settings = await repositorySettingsClient.load(rootURL)
+          let settings = repositorySettingsClient.load(rootURL)
           let trimmed = settings.runScript.trimmingCharacters(in: .whitespacesAndNewlines)
           guard !trimmed.isEmpty else { return }
           await terminalClient.send(.runScript(worktree, script: settings.runScript))
@@ -301,8 +304,9 @@ struct AppFeature {
           return .none
         }
         let worktreeID = selectedWorktree.id
+        let repositorySettingsClient = repositorySettingsClient
         return .run { send in
-          let settings = await repositorySettingsClient.load(rootURL)
+          let settings = repositorySettingsClient.load(rootURL)
           await send(.worktreeSettingsLoaded(settings, worktreeID: worktreeID))
         }
 

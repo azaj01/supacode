@@ -96,7 +96,7 @@ final class WorktreeTerminalManager {
     let state = state(for: worktree)
     let setupScript: String?
     if state.needsSetupScript() {
-      let settings = await RepositorySettingsStorage().load(for: worktree.repositoryRootURL)
+      let settings = RepositorySettingsStorage().load(for: worktree.repositoryRootURL)
       setupScript = settings.setupScript
     } else {
       setupScript = nil

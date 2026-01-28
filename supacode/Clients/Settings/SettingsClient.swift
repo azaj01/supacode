@@ -1,5 +1,5 @@
 import ComposableArchitecture
-import Foundation
+import Sharing
 
 struct SettingsClient {
   var load: @Sendable () async -> GlobalSettings
@@ -9,11 +9,13 @@ struct SettingsClient {
 extension SettingsClient: DependencyKey {
   static let liveValue = SettingsClient(
     load: {
-      await SettingsStorage.shared.load().global
+      @Shared(.settingsFile) var settings: SettingsFile
+      return settings.global
     },
     save: { settings in
-      await SettingsStorage.shared.update { fileSettings in
-        fileSettings.global = settings
+      @Shared(.settingsFile) var fileSettings: SettingsFile
+      $fileSettings.withLock {
+        $0.global = settings
       }
     }
   )

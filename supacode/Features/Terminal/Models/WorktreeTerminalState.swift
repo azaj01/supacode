@@ -52,7 +52,7 @@ final class WorktreeTerminalState {
       Task {
         let setupScript: String?
         if pendingSetupScript {
-          let settings = await RepositorySettingsStorage().load(for: worktree.repositoryRootURL)
+          let settings = RepositorySettingsStorage().load(for: worktree.repositoryRootURL)
           setupScript = settings.setupScript
         } else {
           setupScript = nil

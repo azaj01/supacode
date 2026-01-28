@@ -28,8 +28,9 @@ struct RepositorySettingsFeature {
       switch action {
       case .task:
         let rootURL = state.rootURL
+        let repositorySettingsClient = repositorySettingsClient
         return .run { send in
-          let settings = await repositorySettingsClient.load(rootURL)
+          let settings = repositorySettingsClient.load(rootURL)
           await send(.settingsLoaded(settings))
         }
 
@@ -41,8 +42,9 @@ struct RepositorySettingsFeature {
         state.settings.setupScript = script
         let settings = state.settings
         let rootURL = state.rootURL
+        let repositorySettingsClient = repositorySettingsClient
         return .run { _ in
-          await repositorySettingsClient.save(settings, rootURL)
+          repositorySettingsClient.save(settings, rootURL)
           await MainActor.run {
             NotificationCenter.default.post(
               name: Notification.Name("repositorySettingsChanged"),
@@ -55,8 +57,9 @@ struct RepositorySettingsFeature {
         state.settings.runScript = script
         let settings = state.settings
         let rootURL = state.rootURL
+        let repositorySettingsClient = repositorySettingsClient
         return .run { _ in
-          await repositorySettingsClient.save(settings, rootURL)
+          repositorySettingsClient.save(settings, rootURL)
           await MainActor.run {
             NotificationCenter.default.post(
               name: Notification.Name("repositorySettingsChanged"),

@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import Sharing
 
 struct RepositoryPersistenceClient {
   var loadRoots: @Sendable () async -> [String]
@@ -11,19 +12,23 @@ extension RepositoryPersistenceClient: DependencyKey {
   static let liveValue: RepositoryPersistenceClient = {
     return RepositoryPersistenceClient(
       loadRoots: {
-        await SettingsStorage.shared.load().repositoryRoots
+        @Shared(.settingsFile) var settings: SettingsFile
+        return settings.repositoryRoots
       },
       saveRoots: { roots in
-        await SettingsStorage.shared.update { settings in
-          settings.repositoryRoots = roots
+        @Shared(.settingsFile) var settings: SettingsFile
+        $settings.withLock {
+          $0.repositoryRoots = roots
         }
       },
       loadPinnedWorktreeIDs: {
-        await SettingsStorage.shared.load().pinnedWorktreeIDs
+        @Shared(.settingsFile) var settings: SettingsFile
+        return settings.pinnedWorktreeIDs
       },
       savePinnedWorktreeIDs: { ids in
-        await SettingsStorage.shared.update { settings in
-          settings.pinnedWorktreeIDs = ids
+        @Shared(.settingsFile) var settings: SettingsFile
+        $settings.withLock {
+          $0.pinnedWorktreeIDs = ids
         }
       }
     )

@@ -1,28 +1,25 @@
 import Foundation
+import Sharing
 
 nonisolated struct RepositorySettingsStorage {
-  let storage: SettingsStorage
-
-  init(storage: SettingsStorage = .shared) {
-    self.storage = storage
-  }
-
-  func load(for rootURL: URL) async -> RepositorySettings {
+  func load(for rootURL: URL) -> RepositorySettings {
     let repositoryID = repositoryID(for: rootURL)
-    return await storage.update { fileSettings in
-      if let settings = fileSettings.repositories[repositoryID] {
-        return settings
+    @Shared(.settingsFile) var settingsFile: SettingsFile
+    return $settingsFile.withLock { settings in
+      if let existing = settings.repositories[repositoryID] {
+        return existing
       }
       let defaults = RepositorySettings.default
-      fileSettings.repositories[repositoryID] = defaults
+      settings.repositories[repositoryID] = defaults
       return defaults
     }
   }
 
-  func save(_ settings: RepositorySettings, for rootURL: URL) async {
+  func save(_ settings: RepositorySettings, for rootURL: URL) {
     let repositoryID = repositoryID(for: rootURL)
-    await storage.update { fileSettings in
-      fileSettings.repositories[repositoryID] = settings
+    @Shared(.settingsFile) var settingsFile: SettingsFile
+    $settingsFile.withLock {
+      $0.repositories[repositoryID] = settings
     }
   }
 
