@@ -54,7 +54,7 @@ struct PullRequestStatusModel: Equatable {
       return
     }
     let isDraft = snapshot.pullRequestIsDraft
-    let prefix = "\(isDraft ? "(Drafted) " : "")↗ - "
+    let prefix = "\(isDraft ? "(Drafted) " : "")"
     let checks = snapshot.pullRequestStatusChecks
     self.statusChecks = checks
     if checks.isEmpty {
