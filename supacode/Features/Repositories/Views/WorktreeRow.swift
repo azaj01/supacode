@@ -33,7 +33,6 @@ struct WorktreeRow: View {
       state: pullRequestState,
       number: pullRequestNumber
     )
-    let pullRequestHelp = "Show pull request checks"
     HStack(alignment: .center) {
       ZStack {
         if showsNotificationIndicator {
@@ -78,13 +77,19 @@ struct WorktreeRow: View {
           .accessibilityLabel("Run script active")
       }
       if let pullRequestBadgeStyle {
-        pullRequestBadge(
-          text: pullRequestBadgeStyle.text,
-          color: pullRequestBadgeStyle.color,
-          help: pullRequestHelp,
-          url: pullRequestURL,
-          checks: pullRequestChecks
-        )
+        PullRequestChecksPopoverButton(
+          checks: pullRequestChecks,
+          pullRequestURL: pullRequestURL
+        ) {
+          let breakdown = PullRequestCheckBreakdown(checks: pullRequestChecks)
+          HStack(spacing: 6) {
+            if breakdown.total > 0 {
+              PullRequestChecksRingView(breakdown: breakdown)
+            }
+            PullRequestBadgeView(text: pullRequestBadgeStyle.text, color: pullRequestBadgeStyle.color)
+          }
+        }
+        .help("Show pull request checks")
       }
       if let shortcutHint {
         ShortcutHintView(text: shortcutHint, color: .secondary)
@@ -92,26 +97,6 @@ struct WorktreeRow: View {
     }
   }
 
-  @ViewBuilder
-  private func pullRequestBadge(
-    text: String,
-    color: Color,
-    help: String,
-    url: URL?,
-    checks: [GithubPullRequestStatusCheck]
-  ) -> some View {
-    PullRequestChecksPopoverButton(
-      checks: checks,
-      pullRequestURL: url
-    ) {
-      let breakdown = PullRequestCheckBreakdown(checks: checks)
-      HStack(spacing: 6) {
-        PullRequestChecksRingView(breakdown: breakdown)
-        PullRequestBadgeView(text: text, color: color)
-      }
-    }
-    .help(help)
-  }
 }
 
 private struct WorktreeRowInfoView: View {
