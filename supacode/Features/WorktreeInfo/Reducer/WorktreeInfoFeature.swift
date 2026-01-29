@@ -200,6 +200,7 @@ nonisolated private func loadWorktreeInfoSnapshot(
   var pullRequestIsDraft = cachedPullRequestInfo.isDraft
   var pullRequestReviewDecision = cachedPullRequestInfo.reviewDecision
   var pullRequestUpdatedAt = cachedPullRequestInfo.updatedAt
+  var pullRequestStatusChecks = cachedPullRequestInfo.statusChecks
 
   if cachedPullRequest == nil, githubAvailable {
     do {
@@ -212,6 +213,7 @@ nonisolated private func loadWorktreeInfoSnapshot(
         pullRequestIsDraft = pullRequestInfo.isDraft
         pullRequestReviewDecision = pullRequestInfo.reviewDecision
         pullRequestUpdatedAt = pullRequestInfo.updatedAt
+        pullRequestStatusChecks = pullRequestInfo.statusChecks
       }
     } catch {
       githubError = githubError ?? error.localizedDescription
@@ -243,6 +245,7 @@ nonisolated private func loadWorktreeInfoSnapshot(
     pullRequestIsDraft: pullRequestIsDraft,
     pullRequestReviewDecision: pullRequestReviewDecision,
     pullRequestUpdatedAt: pullRequestUpdatedAt,
+    pullRequestStatusChecks: pullRequestStatusChecks,
     workflowName: workflowName,
     workflowStatus: workflowStatus,
     workflowConclusion: workflowConclusion,
@@ -274,6 +277,7 @@ nonisolated private func snapshotFromCachedPullRequest(
     pullRequestIsDraft: pullRequestInfo.isDraft,
     pullRequestReviewDecision: pullRequestInfo.reviewDecision,
     pullRequestUpdatedAt: pullRequestInfo.updatedAt,
+    pullRequestStatusChecks: pullRequestInfo.statusChecks,
     workflowName: nil,
     workflowStatus: nil,
     workflowConclusion: nil,
@@ -301,6 +305,7 @@ nonisolated private func snapshotByReplacingPullRequest(
     pullRequestIsDraft: pullRequestInfo.isDraft,
     pullRequestReviewDecision: pullRequestInfo.reviewDecision,
     pullRequestUpdatedAt: pullRequestInfo.updatedAt,
+    pullRequestStatusChecks: pullRequestInfo.statusChecks,
     workflowName: snapshot.workflowName,
     workflowStatus: snapshot.workflowStatus,
     workflowConclusion: snapshot.workflowConclusion,
@@ -318,6 +323,7 @@ private struct PullRequestDetails: Equatable {
   let isDraft: Bool
   let reviewDecision: String?
   let updatedAt: Date?
+  let statusChecks: [GithubPullRequestStatusCheck]
 }
 
 nonisolated private func pullRequestDetails(
@@ -332,6 +338,7 @@ nonisolated private func pullRequestDetails(
       isDraft: false,
       reviewDecision: nil,
       updatedAt: nil,
+      statusChecks: []
     )
   }
 
@@ -343,5 +350,6 @@ nonisolated private func pullRequestDetails(
     isDraft: pullRequest.isDraft,
     reviewDecision: pullRequest.reviewDecision,
     updatedAt: pullRequest.updatedAt,
+    statusChecks: pullRequest.statusCheckRollup?.checks ?? []
   )
 }

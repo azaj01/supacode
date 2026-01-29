@@ -11,4 +11,5 @@ nonisolated struct GithubPullRequest: Decodable, Equatable, Hashable {
   let updatedAt: Date?
   let url: String
   let headRefName: String?
+  let statusCheckRollup: GithubPullRequestStatusCheckRollup?
 }
