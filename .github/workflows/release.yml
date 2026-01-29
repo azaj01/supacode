@@ -204,12 +204,7 @@ jobs:
           SENTRY_ORG: supabit
           SENTRY_PROJECT: supacode
         run: |
-          SENTRY_CLI_DIR="$(mise where github:getsentry/sentry-cli)"
-          SENTRY_CLI="$SENTRY_CLI_DIR/sentry-cli-Darwin"
-          if [ ! -x "$SENTRY_CLI" ]; then
-            SENTRY_CLI="$SENTRY_CLI_DIR/sentry-cli"
-          fi
-          "$SENTRY_CLI" debug-files upload --include-sources build/supacode.xcarchive/dSYMs
+          mise exec -- sentry-cli debug-files upload --include-sources build/supacode.xcarchive/dSYMs
       - run: |
           cat > build/ExportOptions.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
