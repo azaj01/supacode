@@ -64,7 +64,20 @@ struct WorktreeDetailView: View {
           runScriptEnabled: runScriptEnabled,
           runScriptIsRunning: runScriptIsRunning
         )
-        worktreeToolbar(worktreeID: selectedWorktree.id, toolbarState: toolbarState)
+        WorktreeToolbarContent(
+          toolbarState: toolbarState,
+          onRenameBranch: { newBranch in
+            store.send(.repositories(.requestRenameBranch(selectedWorktree.id, newBranch)))
+          },
+          onOpenWorktree: { action in
+            store.send(.openWorktree(action))
+          },
+          onOpenActionSelectionChanged: { action in
+            store.send(.openActionSelectionChanged(action))
+          },
+          onRunScript: { store.send(.runScript) },
+          onStopRunScript: { store.send(.stopRunScript) }
+        )
       }
     }
     let actions = makeFocusedActions(
@@ -130,7 +143,7 @@ struct WorktreeDetailView: View {
     let stopRunScript: (() -> Void)?
   }
 
-  private struct WorktreeToolbarState {
+  fileprivate struct WorktreeToolbarState {
     let branchName: String
     let pullRequest: GithubPullRequest?
     let openActionSelection: OpenWorktreeAction
@@ -147,6 +160,103 @@ struct WorktreeDetailView: View {
 
     var stopRunScriptHelpText: String {
       "Stop Script (\(AppShortcuts.stopRunScript.display))"
+    }
+  }
+
+  fileprivate struct WorktreeToolbarContent: ToolbarContent {
+    let toolbarState: WorktreeToolbarState
+    let onRenameBranch: (String) -> Void
+    let onOpenWorktree: (OpenWorktreeAction) -> Void
+    let onOpenActionSelectionChanged: (OpenWorktreeAction) -> Void
+    let onRunScript: () -> Void
+    let onStopRunScript: () -> Void
+
+    var body: some ToolbarContent {
+      ToolbarItem(placement: .navigation) {
+        WorktreeDetailTitleView(
+          branchName: toolbarState.branchName,
+          onSubmit: onRenameBranch
+        )
+      }
+      ToolbarItem(placement: .principal) {
+        HStack {
+          if let model = PullRequestStatusModel(pullRequest: toolbarState.pullRequest) {
+            PullRequestStatusButton(model: model).padding(.horizontal)
+          } else {
+            MiddleStatusView().padding(.horizontal)
+          }
+          Divider()
+          RunScriptToolbarButton(
+            isRunning: toolbarState.runScriptIsRunning,
+            isEnabled: toolbarState.runScriptEnabled,
+            runHelpText: toolbarState.runScriptHelpText,
+            stopHelpText: toolbarState.stopRunScriptHelpText,
+            runShortcut: AppShortcuts.runScript.display,
+            stopShortcut: AppShortcuts.stopRunScript.display,
+            runAction: onRunScript,
+            stopAction: onStopRunScript
+          )
+        }
+      }
+      ToolbarItem(placement: .automatic) {
+        openMenu(
+          openActionSelection: toolbarState.openActionSelection,
+          showExtras: toolbarState.showExtras
+        )
+      }
+    }
+
+    @ViewBuilder
+    private func openMenu(openActionSelection: OpenWorktreeAction, showExtras: Bool) -> some View {
+      let availableActions = OpenWorktreeAction.availableCases
+      let resolvedOpenActionSelection = OpenWorktreeAction.availableSelection(openActionSelection)
+      HStack(spacing: 0) {
+        Button {
+          onOpenWorktree(resolvedOpenActionSelection)
+        } label: {
+          OpenWorktreeActionMenuLabelView(
+            action: resolvedOpenActionSelection,
+            shortcutHint: showExtras ? AppShortcuts.openFinder.display : nil
+          )
+        }
+        .buttonStyle(.borderless)
+        .padding(8)
+        .help(openActionHelpText(for: resolvedOpenActionSelection, isDefault: true))
+
+        Divider()
+          .frame(height: 16)
+
+        Menu {
+          ForEach(availableActions) { action in
+            let isDefault = action == resolvedOpenActionSelection
+            Button {
+              onOpenActionSelectionChanged(action)
+              onOpenWorktree(action)
+            } label: {
+              OpenWorktreeActionMenuLabelView(action: action, shortcutHint: nil)
+            }
+            .buttonStyle(.plain)
+            .help(openActionHelpText(for: action, isDefault: isDefault))
+          }
+        } label: {
+          Image(systemName: "chevron.down")
+            .font(.system(size: 8))
+            .monospaced()
+            .accessibilityLabel("Open in menu")
+        }
+        .buttonStyle(.borderless)
+        .padding(8)
+        .imageScale(.small)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Open in...")
+      }
+    }
+
+    private func openActionHelpText(for action: OpenWorktreeAction, isDefault: Bool) -> String {
+      isDefault
+        ? "\(action.title) (\(AppShortcuts.openFinder.display))"
+        : action.title
     }
   }
 
@@ -171,101 +281,6 @@ struct WorktreeDetailView: View {
       )
     }
     return nil
-  }
-
-  @ToolbarContentBuilder
-  private func worktreeToolbar(
-    worktreeID: Worktree.ID,
-    toolbarState: WorktreeToolbarState
-  ) -> some ToolbarContent {
-    ToolbarItem(placement: .navigation) {
-      WorktreeDetailTitleView(
-        branchName: toolbarState.branchName,
-        onSubmit: { newBranch in
-          store.send(.repositories(.requestRenameBranch(worktreeID, newBranch)))
-        }
-      )
-    }
-    ToolbarItem(placement: .principal) {
-      HStack {
-        if let model = PullRequestStatusModel(pullRequest: toolbarState.pullRequest) {
-          PullRequestStatusButton(model: model).padding(.horizontal)
-        } else {
-          MiddleStatusView().padding(.horizontal)
-        }
-        Divider()
-        RunScriptToolbarButton(
-          isRunning: toolbarState.runScriptIsRunning,
-          isEnabled: toolbarState.runScriptEnabled,
-          runHelpText: toolbarState.runScriptHelpText,
-          stopHelpText: toolbarState.stopRunScriptHelpText,
-          runShortcut: AppShortcuts.runScript.display,
-          stopShortcut: AppShortcuts.stopRunScript.display,
-          runAction: { store.send(.runScript) },
-          stopAction: { store.send(.stopRunScript) }
-        )
-      }
-    }
-
-    ToolbarItem(placement: .automatic) {
-      openMenu(
-        openActionSelection: toolbarState.openActionSelection,
-        showExtras: toolbarState.showExtras
-      )
-    }
-  }
-
-  @ViewBuilder
-  private func openMenu(openActionSelection: OpenWorktreeAction, showExtras: Bool) -> some View {
-    let availableActions = OpenWorktreeAction.availableCases
-    let resolvedOpenActionSelection = OpenWorktreeAction.availableSelection(openActionSelection)
-    HStack(spacing: 0) {
-      Button {
-        store.send(.openWorktree(resolvedOpenActionSelection))
-      } label: {
-        OpenWorktreeActionMenuLabelView(
-          action: resolvedOpenActionSelection,
-          shortcutHint: showExtras ? AppShortcuts.openFinder.display : nil
-        )
-      }
-      .buttonStyle(.borderless)
-      .padding(8)
-      .help(openActionHelpText(for: resolvedOpenActionSelection, isDefault: true))
-
-      Divider()
-        .frame(height: 16)
-
-      Menu {
-        ForEach(availableActions) { action in
-          let isDefault = action == resolvedOpenActionSelection
-          Button {
-            store.send(.openActionSelectionChanged(action))
-            store.send(.openWorktree(action))
-          } label: {
-            OpenWorktreeActionMenuLabelView(action: action, shortcutHint: nil)
-          }
-          .buttonStyle(.plain)
-          .help(openActionHelpText(for: action, isDefault: isDefault))
-        }
-      } label: {
-        Image(systemName: "chevron.down")
-          .font(.system(size: 8))
-          .monospaced()
-          .accessibilityLabel("Open in menu")
-      }
-      .buttonStyle(.borderless)
-      .padding(8)
-      .imageScale(.small)
-      .menuIndicator(.hidden)
-      .fixedSize()
-      .help("Open in...")
-    }
-  }
-
-  private func openActionHelpText(for action: OpenWorktreeAction, isDefault: Bool) -> String {
-    isDefault
-      ? "\(action.title) (\(AppShortcuts.openFinder.display))"
-      : action.title
   }
 }
 
@@ -336,4 +351,59 @@ private struct RunScriptToolbarButton: View {
     let isEnabled: Bool
     let action: () -> Void
   }
+}
+
+@MainActor
+private struct WorktreeToolbarPreview: View {
+  private let toolbarState: WorktreeDetailView.WorktreeToolbarState
+  private let commandKeyObserver: CommandKeyObserver
+
+  init() {
+    toolbarState = WorktreeDetailView.WorktreeToolbarState(
+      branchName: "feature/toolbar-preview",
+      pullRequest: GithubPullRequest(
+        number: 128,
+        title: "Add toolbar preview",
+        state: "OPEN",
+        additions: 120,
+        deletions: 12,
+        isDraft: false,
+        reviewDecision: "APPROVED",
+        updatedAt: Date(),
+        url: "https://github.com/supabitapp/supacode/pull/128",
+        headRefName: "feature/toolbar-preview",
+        statusCheckRollup: nil
+      ),
+      openActionSelection: .finder,
+      showExtras: false,
+      runScriptEnabled: true,
+      runScriptIsRunning: false
+    )
+    let observer = CommandKeyObserver()
+    observer.isPressed = false
+    commandKeyObserver = observer
+  }
+
+  var body: some View {
+    NavigationStack {
+      Text("Worktree Toolbar")
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    .toolbar {
+      WorktreeDetailView.WorktreeToolbarContent(
+        toolbarState: toolbarState,
+        onRenameBranch: { _ in },
+        onOpenWorktree: { _ in },
+        onOpenActionSelectionChanged: { _ in },
+        onRunScript: {},
+        onStopRunScript: {}
+      )
+    }
+    .environment(commandKeyObserver)
+    .frame(width: 900, height: 160)
+  }
+}
+
+#Preview("Worktree Toolbar") {
+  WorktreeToolbarPreview()
 }
