@@ -148,6 +148,7 @@ struct RepositoriesFeature {
 
       case .repositoriesLoaded(let repositories, let failures, let roots, let animated):
         let previousSelection = state.selectedWorktreeID
+        let previousSelectedWorktree = state.worktree(for: previousSelection)
         let mergedRepositories = mergeRepositories(
           roots: roots,
           loaded: repositories,
@@ -166,8 +167,8 @@ struct RepositoriesFeature {
             message: errors.joined(separator: "\n")
           )
         }
-        let selectionChanged = previousSelection != state.selectedWorktreeID
         let selectedWorktree = state.worktree(for: state.selectedWorktreeID)
+        let selectionChanged = previousSelectedWorktree != selectedWorktree
         var allEffects: [Effect<Action>] = [
           .send(.delegate(.repositoriesChanged(mergedRepositories)))
         ]
@@ -218,6 +219,7 @@ struct RepositoriesFeature {
 
       case .openRepositoriesFinished(let repositories, let failures, let invalidRoots, let roots):
         let previousSelection = state.selectedWorktreeID
+        let previousSelectedWorktree = state.worktree(for: previousSelection)
         let mergedRepositories = mergeRepositories(
           roots: roots,
           loaded: repositories,
@@ -244,8 +246,8 @@ struct RepositoriesFeature {
             )
           }
         }
-        let selectionChanged = previousSelection != state.selectedWorktreeID
         let selectedWorktree = state.worktree(for: state.selectedWorktreeID)
+        let selectionChanged = previousSelectedWorktree != selectedWorktree
         var allEffects: [Effect<Action>] = [
           .send(.delegate(.repositoriesChanged(mergedRepositories)))
         ]

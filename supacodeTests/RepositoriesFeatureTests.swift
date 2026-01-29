@@ -145,6 +145,32 @@ struct RepositoriesFeatureTests {
     await store.receive(.delegate(.repositoriesChanged([repository])))
   }
 
+  @Test func repositoriesLoadedUpdatesSelectedWorktreeDelegateOnChange() async {
+    let repoRoot = "/tmp/repo"
+    let worktree = makeWorktree(id: "/tmp/repo/main", name: "main", repoRoot: repoRoot)
+    let repository = makeRepository(id: repoRoot, worktrees: [worktree])
+    let updatedWorktree = makeWorktree(id: "/tmp/repo/main", name: "main-updated", repoRoot: repoRoot)
+    let updatedRepository = makeRepository(id: repoRoot, worktrees: [updatedWorktree])
+    var initialState = RepositoriesFeature.State(repositories: [repository])
+    initialState.selectedWorktreeID = worktree.id
+    let store = TestStore(initialState: initialState) {
+      RepositoriesFeature()
+    }
+
+    await store.send(
+      .repositoriesLoaded(
+        [updatedRepository],
+        failures: [],
+        roots: [repository.rootURL],
+        animated: false
+      )
+    ) {
+      $0.repositories = [updatedRepository]
+    }
+    await store.receive(.delegate(.repositoriesChanged([updatedRepository])))
+    await store.receive(.delegate(.selectedWorktreeChanged(updatedWorktree)))
+  }
+
   @Test func worktreeRemovedPrunesStateAndSendsDelegates() async {
     let repoRoot = "/tmp/repo"
     let mainWorktree = makeWorktree(id: "/tmp/repo/main", name: "main", repoRoot: repoRoot)
