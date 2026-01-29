@@ -504,6 +504,7 @@ struct RepositoriesFeature {
         let selectionWasRemoved,
         let nextSelection
       ):
+        state.deletingWorktreeIDs.remove(worktreeID)
         state.pendingSetupScriptWorktreeIDs.remove(worktreeID)
         state.pendingTerminalFocusWorktreeIDs.remove(worktreeID)
         let roots = state.repositories.map(\.rootURL)
