@@ -118,4 +118,4 @@ Always read `./docs/swift-rules.md` before writing Swift code. Key points:
 ## References
 
 - `git@github.com:ghostty-org/ghostty.git` - Dive into this codebase when implementing Ghostty features
-- `git@github.com:khoi/git-wt.git` - Bundled git worktree wrapper (in Resources/git-wt/wt), can be modified as needed
+- `git@github.com:khoi/git-wt.git` - Bundled git worktree wrapper (in Resources/git-wt/wt), modified in the repo directly, do not modified the bundled script we have
