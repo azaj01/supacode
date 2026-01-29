@@ -93,11 +93,6 @@ format: # Swift format
 		mise exec -- swiftlint --fix --quiet; \
 	fi
 
-install-git-hooks: # Install git hooks to format/lint staged files
-	@mkdir -p "$(CURRENT_MAKEFILE_DIR)/.githooks"
-	@git config core.hooksPath "$(CURRENT_MAKEFILE_DIR)/.githooks"
-	@chmod +x "$(CURRENT_MAKEFILE_DIR)/.githooks/pre-commit"
-
 update-wt: # Download git-wt binary to Resources
 	@mkdir -p "$(CURRENT_MAKEFILE_DIR)/Resources/git-wt"
 	@curl -fsSL "https://raw.githubusercontent.com/khoi/git-wt/refs/heads/main/wt" -o "$(CURRENT_MAKEFILE_DIR)/Resources/git-wt/wt"

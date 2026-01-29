@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct XcodeStyleStatusView: View {
+struct MiddleStatusView: View {
   private static let morningMessages = [
     "Rise and shine!",
     "Fresh start, fresh code",
@@ -294,7 +294,7 @@ struct XcodeStyleDiagnosticsView: View {
 }
 
 #Preview("Status View") {
-  XcodeStyleStatusView()
+  MiddleStatusView()
     .padding()
 }
 

@@ -191,7 +191,7 @@ struct WorktreeDetailView: View {
         if let model = PullRequestStatusModel(snapshot: toolbarState.worktreeInfoSnapshot) {
           PullRequestStatusButton(model: model).padding(.horizontal)
         } else {
-          XcodeStyleStatusView().padding(.horizontal)
+          MiddleStatusView().padding(.horizontal)
         }
         Divider()
         RunScriptToolbarButton(
@@ -367,7 +367,7 @@ private struct WorktreeToolbarPreview: View {
       if let prModel {
         PullRequestStatusButton(model: prModel).padding(.horizontal)
       } else {
-        XcodeStyleStatusView().padding(.horizontal)
+        MiddleStatusView().padding(.horizontal)
       }
     }
     ToolbarItem(placement: .status) {
