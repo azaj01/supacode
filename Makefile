@@ -71,6 +71,7 @@ test: build-ghostty-xcframework
 
 format: # Swift format
 	swift-format -p --in-place --recursive --configuration ./.swift-format.json supacode supacodeTests
+	mise exec -- swiftlint --fix --quiet
 
 update-wt: # Download git-wt binary to Resources
 	@mkdir -p "$(CURRENT_MAKEFILE_DIR)/Resources/git-wt"
