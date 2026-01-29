@@ -12,7 +12,6 @@ nonisolated struct WorktreeInfoSnapshot: Equatable {
   let pullRequestIsDraft: Bool
   let pullRequestReviewDecision: String?
   let pullRequestUpdatedAt: Date?
-  let pullRequestStatusChecks: [GithubPullRequestStatusCheck]
   let workflowName: String?
   let workflowStatus: String?
   let workflowConclusion: String?

@@ -10,84 +10,45 @@ struct PullRequestStatusButton: View {
         openURL(url)
       }
     } label: {
-      HStack {
-        if let checkBreakdown = model.checkBreakdown {
-          PullRequestChecksRingView(breakdown: checkBreakdown)
-        }
-        Text(model.label)
-      }
+      PullRequestBadgeView(
+        text: model.badgeText,
+        color: model.badgeColor
+      )
     }
     .buttonStyle(.plain)
-    .font(.caption)
-    .monospaced()
-    .help("Open pull request on GitHub")
+    .help(model.helpText)
   }
 
 }
 
 struct PullRequestStatusModel: Equatable {
-  let label: String
+  let number: Int
+  let state: String
   let url: URL?
-  let checkBreakdown: PullRequestCheckBreakdown?
-
-  init(label: String, url: URL?, checkBreakdown: PullRequestCheckBreakdown?) {
-    self.label = label
-    self.url = url
-    self.checkBreakdown = checkBreakdown
-  }
 
   init?(snapshot: WorktreeInfoSnapshot?) {
     guard
       let snapshot,
       let number = snapshot.pullRequestNumber,
-      Self.shouldDisplay(state: snapshot.pullRequestState, number: number)
+      let state = snapshot.pullRequestState?.uppercased(),
+      PullRequestBadgeStyle.style(state: state, number: number) != nil
     else {
       return nil
     }
-    let state = snapshot.pullRequestState?.uppercased()
-    let url = snapshot.pullRequestURL.flatMap(URL.init(string:))
-    if state == "MERGED" {
-      self.label = "PR #\(number) - Merged"
-      self.url = url
-      self.checkBreakdown = nil
-      return
-    }
-    let isDraft = snapshot.pullRequestIsDraft
-    let prefix = "PR #\(number)\(isDraft ? " (Drafted)" : "") ↗ - "
-    let checks = snapshot.pullRequestStatusChecks
-    if checks.isEmpty {
-      self.label = prefix + "Checks unavailable"
-      self.url = url
-      self.checkBreakdown = nil
-      return
-    }
-    let breakdown = PullRequestCheckBreakdown(checks: checks)
-    let checksLabel = breakdown.total == 1 ? "check" : "checks"
-    var parts: [String] = []
-    if breakdown.failed > 0 {
-      parts.append("\(breakdown.failed) failed")
-    }
-    if breakdown.inProgress > 0 {
-      parts.append("\(breakdown.inProgress) in progress")
-    }
-    if breakdown.skipped > 0 {
-      parts.append("\(breakdown.skipped) skipped")
-    }
-    if breakdown.expected > 0 {
-      parts.append("\(breakdown.expected) expected")
-    }
-    if breakdown.total > 0 {
-      parts.append("\(breakdown.passed) successful")
-    }
-    self.label = prefix + parts.joined(separator: ", ") + " \(checksLabel)"
-    self.url = url
-    self.checkBreakdown = breakdown
+    self.number = number
+    self.state = state
+    self.url = snapshot.pullRequestURL.flatMap(URL.init(string:))
   }
 
-  static func shouldDisplay(state: String?, number: Int?) -> Bool {
-    guard number != nil else {
-      return false
-    }
-    return state?.uppercased() != "CLOSED"
+  var badgeText: String {
+    PullRequestBadgeStyle.style(state: state, number: number)?.text ?? "#\(number)"
+  }
+
+  var badgeColor: Color {
+    PullRequestBadgeStyle.style(state: state, number: number)?.color ?? .secondary
+  }
+
+  var helpText: String {
+    PullRequestBadgeStyle.helpText(state: state, url: url)
   }
 }

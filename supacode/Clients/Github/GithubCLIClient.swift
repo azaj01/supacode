@@ -100,8 +100,7 @@ extension GithubCLIClient: DependencyKey {
           "url",
         ]
         let headRefNameField = "headRefName"
-        let statusCheckField = "statusCheckRollup"
-        var requestedFields = baseFields + [headRefNameField, statusCheckField]
+        var requestedFields = baseFields + [headRefNameField]
         var output: String?
         while true {
           do {
@@ -118,13 +117,9 @@ extension GithubCLIClient: DependencyKey {
             break
           } catch {
             let dropHeadRefName = isUnsupportedFieldError(error, fieldName: headRefNameField)
-            let dropStatusCheck = isUnsupportedFieldError(error, fieldName: statusCheckField)
             var updatedFields = requestedFields
             if dropHeadRefName {
               updatedFields.removeAll { $0 == headRefNameField }
-            }
-            if dropStatusCheck {
-              updatedFields.removeAll { $0 == statusCheckField }
             }
             if updatedFields == requestedFields {
               throw error
