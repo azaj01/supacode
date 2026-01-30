@@ -12,24 +12,5 @@ import Testing
 struct SupacodeTests {
 
   @Test func example() throws {
-    // Write your test here and use APIs like `#expect(...)` to check expected conditions.
-  }
-
-  @Test func worktreeDirtCheckEmptyIsClean() {
-    #expect(WorktreeDirtCheck.isDirty(statusOutput: "") == false)
-  }
-
-  @Test func worktreeDirtCheckWhitespaceIsClean() {
-    #expect(WorktreeDirtCheck.isDirty(statusOutput: " \n") == false)
-  }
-
-  @Test func worktreeDirtCheckModifiedIsDirty() {
-    let output = " M README.md\n"
-    #expect(WorktreeDirtCheck.isDirty(statusOutput: output))
-  }
-
-  @Test func worktreeDirtCheckUntrackedIsDirty() {
-    let output = "?? new-file.txt\n"
-    #expect(WorktreeDirtCheck.isDirty(statusOutput: output))
   }
 }

@@ -39,20 +39,18 @@ struct RepositoriesFeatureTests {
     }
   }
 
-  @Test func requestRemoveDirtyWorktreeShowsConfirmation() async {
+  @Test func requestRemoveWorktreeShowsConfirmation() async {
     let worktree = makeWorktree(id: "/tmp/wt", name: "owl")
     let repository = makeRepository(id: "/tmp/repo", worktrees: [worktree])
     let store = TestStore(initialState: RepositoriesFeature.State(repositories: [repository])) {
       RepositoriesFeature()
-    } withDependencies: {
-      $0.gitClient.isWorktreeDirty = { _ in true }
     }
 
     let expectedAlert = AlertState<RepositoriesFeature.Alert> {
-      TextState("Worktree has uncommitted changes")
+      TextState("Remove worktree?")
     } actions: {
       ButtonState(role: .destructive, action: .confirmRemoveWorktree(worktree.id, repository.id)) {
-        TextState("Remove anyway")
+        TextState("Remove")
       }
       ButtonState(role: .cancel) {
         TextState("Cancel")
