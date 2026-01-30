@@ -84,8 +84,9 @@ struct WorktreeRow: View {
           pullRequestTitle: pullRequestTitle
         ) {
           let breakdown = PullRequestCheckBreakdown(checks: pullRequestChecks)
+          let showsChecksRing = breakdown.total > 0 && pullRequestState != "MERGED"
           HStack(spacing: 6) {
-            if breakdown.total > 0 {
+            if showsChecksRing {
               PullRequestChecksRingView(breakdown: breakdown)
             }
             PullRequestBadgeView(text: pullRequestBadgeStyle.text, color: pullRequestBadgeStyle.color)

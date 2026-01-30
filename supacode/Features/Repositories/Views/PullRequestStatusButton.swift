@@ -11,8 +11,11 @@ struct PullRequestStatusButton: View {
       pullRequestTitle: model.title
     ) {
       let breakdown = PullRequestCheckBreakdown(checks: model.statusChecks)
+      let showsChecksRing = breakdown.total > 0 && model.state != "MERGED"
       HStack(spacing: 6) {
-        PullRequestChecksRingView(breakdown: breakdown)
+        if showsChecksRing {
+          PullRequestChecksRingView(breakdown: breakdown)
+        }
         PullRequestBadgeView(
           text: model.badgeText,
           color: model.badgeColor
