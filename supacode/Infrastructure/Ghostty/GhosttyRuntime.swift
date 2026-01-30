@@ -121,7 +121,6 @@ final class GhosttyRuntime {
     let ghosttyScheme: ghostty_color_scheme_e = scheme == .dark
       ? GHOSTTY_COLOR_SCHEME_DARK
       : GHOSTTY_COLOR_SCHEME_LIGHT
-    print("GhosttyRuntime setColorScheme scheme=\(scheme == .dark ? "dark" : "light")")
     lastColorScheme = ghosttyScheme
     ghostty_app_set_color_scheme(app, ghosttyScheme)
     applyColorSchemeToSurfaces(ghosttyScheme)
@@ -144,7 +143,6 @@ final class GhosttyRuntime {
 
   func reloadConfig(soft: Bool, target: ghostty_target_s) {
     guard let app else { return }
-    print("GhosttyRuntime reloadConfig soft=\(soft) target=\(target.tag.rawValue)")
     if soft, let config {
       applyConfig(config, target: target, app: app)
       return
@@ -161,14 +159,11 @@ final class GhosttyRuntime {
   ) {
     switch target.tag {
     case GHOSTTY_TARGET_APP:
-      print("GhosttyRuntime applyConfig target=app")
       ghostty_app_update_config(app, config)
     case GHOSTTY_TARGET_SURFACE:
       guard let surface = target.target.surface else { return }
-      print("GhosttyRuntime applyConfig target=surface")
       ghostty_surface_update_config(surface, config)
     default:
-      print("GhosttyRuntime applyConfig target=unknown")
       return
     }
   }
@@ -217,7 +212,6 @@ final class GhosttyRuntime {
       if action.tag == GHOSTTY_ACTION_CONFIG_CHANGE {
         let config = action.action.config_change.config
         guard let clone = ghostty_config_clone(config) else { return false }
-        print("GhosttyRuntime action config_change target=\(target.tag.rawValue)")
         Task { @MainActor in
           runtime.setConfig(clone)
           runtime.onConfigChange?()
@@ -226,7 +220,6 @@ final class GhosttyRuntime {
       }
       if action.tag == GHOSTTY_ACTION_RELOAD_CONFIG {
         let soft = action.action.reload_config.soft
-        print("GhosttyRuntime action reload_config soft=\(soft) target=\(target.tag.rawValue)")
         Task { @MainActor in
           runtime.reloadConfig(soft: soft, target: target)
         }
