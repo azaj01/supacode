@@ -30,7 +30,7 @@ struct PullRequestChecksPopoverView: View {
           Button {
             openURL(pullRequestURL)
           } label: {
-            Text(pullRequestTitle ?? "Open pull request on GitHub")
+            Text("\(pullRequestTitle ?? "Open pull request on GitHub") ↗")
               .lineLimit(1)
           }
           .buttonStyle(.plain)
