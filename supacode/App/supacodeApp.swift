@@ -95,12 +95,18 @@ struct SupacodeApp: App {
 
   var body: some Scene {
     WindowGroup {
-      GhosttyColorSchemeSyncView(ghostty: ghostty) {
-        ContentView(store: store, terminalManager: terminalManager)
-          .environment(ghosttyShortcuts)
-          .environment(commandKeyObserver)
-          .preferredColorScheme(store.settings.appearanceMode.colorScheme)
-      }
+      GhosttyColorSchemeSyncView(
+        ghostty: ghostty,
+        onChange: { scheme in
+          terminalManager.setColorScheme(scheme)
+        },
+        content: {
+          ContentView(store: store, terminalManager: terminalManager)
+            .environment(ghosttyShortcuts)
+            .environment(commandKeyObserver)
+        }
+      )
+      .preferredColorScheme(store.settings.appearanceMode.colorScheme)
     }
     .environment(ghosttyShortcuts)
     .environment(commandKeyObserver)

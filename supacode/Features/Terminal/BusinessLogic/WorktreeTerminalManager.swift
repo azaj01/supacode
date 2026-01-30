@@ -1,5 +1,6 @@
 import Observation
 import Sharing
+import SwiftUI
 
 @MainActor
 @Observable
@@ -157,6 +158,12 @@ final class WorktreeTerminalManager {
 
   func clearNotificationIndicator(for worktree: Worktree) {
     states[worktree.id]?.clearNotificationIndicator()
+  }
+
+  func setColorScheme(_ scheme: ColorScheme) {
+    for state in states.values {
+      state.setColorScheme(scheme)
+    }
   }
 
   private func emit(_ event: TerminalClient.Event) {
