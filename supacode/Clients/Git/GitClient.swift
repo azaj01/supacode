@@ -7,6 +7,8 @@ enum GitOperation: String {
   case worktreeCreate = "worktree_create"
   case worktreeRemove = "worktree_remove"
   case branchNames = "branch_names"
+  case branchRefs = "branch_refs"
+  case defaultRemoteBranchRef = "default_remote_branch_ref"
   case branchRename = "branch_rename"
   case branchDelete = "branch_delete"
   case lineChanges = "line_changes"
@@ -118,11 +120,62 @@ struct GitClient {
     return Set(names)
   }
 
+  nonisolated func branchRefs(for repoRoot: URL) async throws -> [String] {
+    let path = repoRoot.path(percentEncoded: false)
+    let localOutput = try await runGit(
+      operation: .branchRefs,
+      arguments: [
+        "-C",
+        path,
+        "for-each-ref",
+        "--format=%(refname:short)\t%(upstream:short)",
+        "refs/heads",
+      ]
+    )
+    let refs = parseLocalRefsWithUpstream(localOutput)
+      .filter { !$0.hasSuffix("/HEAD") }
+      .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    return deduplicated(refs)
+  }
+
+  nonisolated func defaultRemoteBranchRef(for repoRoot: URL) async throws -> String? {
+    let path = repoRoot.path(percentEncoded: false)
+    do {
+      let output = try await runGit(
+        operation: .defaultRemoteBranchRef,
+        arguments: ["-C", path, "symbolic-ref", "-q", "refs/remotes/origin/HEAD"]
+      )
+      let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+      if let resolved = normalizeRemoteRef(trimmed),
+        await refExists(resolved, repoRoot: repoRoot)
+      {
+        return resolved
+      }
+    } catch {
+      let rootPath = repoRoot.path(percentEncoded: false)
+      print(
+        "Default remote branch ref failed for \(rootPath): "
+          + error.localizedDescription
+      )
+    }
+    let fallback = "origin/main"
+    if await refExists(fallback, repoRoot: repoRoot) {
+      return fallback
+    }
+    return nil
+  }
+
+  nonisolated func automaticWorktreeBaseRef(for repoRoot: URL) async -> String? {
+    let resolved = try? await defaultRemoteBranchRef(for: repoRoot)
+    return resolved ?? nil
+  }
+
   nonisolated func createWorktree(
     named name: String,
     in repoRoot: URL,
     copyIgnored: Bool,
-    copyUntracked: Bool
+    copyUntracked: Bool,
+    baseRef: String
   ) async throws -> Worktree {
     let repositoryRootURL = repoRoot.standardizedFileURL
     let wtURL = try wtScriptURL()
@@ -133,6 +186,10 @@ struct GitClient {
     }
     if copyUntracked {
       arguments.append("--copy-untracked")
+    }
+    if !baseRef.isEmpty {
+      arguments.append("--from")
+      arguments.append(baseRef)
     }
     arguments.append(name)
     let output = try await runLoginShellProcess(
@@ -283,6 +340,55 @@ struct GitClient {
         result.added += added
         result.removed += removed
       }
+  }
+
+  nonisolated private func parseLocalRefsWithUpstream(_ output: String) -> [String] {
+    output
+      .split(whereSeparator: \.isNewline)
+      .compactMap { line in
+        let parts = line.split(separator: "\t", omittingEmptySubsequences: false)
+        guard let local = parts.first else {
+          return nil
+        }
+        let localRef = String(local).trimmingCharacters(in: .whitespacesAndNewlines)
+        let upstreamRef = parts.count > 1
+          ? String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+          : ""
+        if !upstreamRef.isEmpty {
+          return upstreamRef
+        }
+        return localRef.isEmpty ? nil : localRef
+      }
+  }
+
+  nonisolated private func deduplicated(_ values: [String]) -> [String] {
+    var seen = Set<String>()
+    return values.filter { seen.insert($0).inserted }
+  }
+
+  nonisolated private func normalizeRemoteRef(_ value: String) -> String? {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+      return nil
+    }
+    let prefix = "refs/remotes/"
+    if trimmed.hasPrefix(prefix) {
+      return String(trimmed.dropFirst(prefix.count))
+    }
+    return trimmed
+  }
+
+  nonisolated private func refExists(_ ref: String, repoRoot: URL) async -> Bool {
+    let path = repoRoot.path(percentEncoded: false)
+    do {
+      _ = try await runGit(
+        operation: .defaultRemoteBranchRef,
+        arguments: ["-C", path, "rev-parse", "--verify", "--quiet", ref]
+      )
+      return true
+    } catch {
+      return false
+    }
   }
 
   nonisolated private func runGit(
