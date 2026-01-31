@@ -71,6 +71,7 @@ struct RepositorySectionView: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.primary)
+        .padding(.trailing, 6)
         .help("New Worktree (\(AppShortcuts.newWorktree.display))")
         .disabled(isRemovingRepository)
       }
