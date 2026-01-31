@@ -9,7 +9,7 @@ struct RepositoriesFeatureTests {
   @Test func selectWorktreeSendsDelegate() async {
     let worktree = makeWorktree(id: "/tmp/wt", name: "fox")
     let repository = makeRepository(id: "/tmp/repo", worktrees: [worktree])
-    let store = TestStore(initialState: RepositoriesFeature.State(repositories: [repository])) {
+    let store = TestStore(initialState: makeState(repositories: [repository])) {
       RepositoriesFeature()
     }
 
@@ -42,7 +42,7 @@ struct RepositoriesFeatureTests {
   @Test func requestRemoveWorktreeShowsConfirmation() async {
     let worktree = makeWorktree(id: "/tmp/wt", name: "owl")
     let repository = makeRepository(id: "/tmp/repo", worktrees: [worktree])
-    let store = TestStore(initialState: RepositoriesFeature.State(repositories: [repository])) {
+    let store = TestStore(initialState: makeState(repositories: [repository])) {
       RepositoriesFeature()
     }
 
@@ -68,7 +68,7 @@ struct RepositoriesFeatureTests {
   @Test func requestRenameBranchWithEmptyNameShowsAlert() async {
     let worktree = makeWorktree(id: "/tmp/wt", name: "eagle")
     let repository = makeRepository(id: "/tmp/repo", worktrees: [worktree])
-    let store = TestStore(initialState: RepositoriesFeature.State(repositories: [repository])) {
+    let store = TestStore(initialState: makeState(repositories: [repository])) {
       RepositoriesFeature()
     }
 
@@ -101,7 +101,7 @@ struct RepositoriesFeatureTests {
         makeWorktree(id: "/tmp/repo-b/wt3", name: "wt3", repoRoot: "/tmp/repo-b")
       ]
     )
-    let state = RepositoriesFeature.State(repositories: [repoA, repoB])
+    let state = makeState(repositories: [repoA, repoB])
 
     #expect(
       state.orderedWorktreeRows().map(\.id) == [
@@ -114,18 +114,8 @@ struct RepositoriesFeatureTests {
 
   @Test func loadRepositoriesFailureKeepsPreviousState() async {
     let repository = makeRepository(id: "/tmp/repo", worktrees: [])
-    let store = TestStore(initialState: RepositoriesFeature.State(repositories: [repository])) {
+    let store = TestStore(initialState: makeState(repositories: [repository])) {
       RepositoriesFeature()
-    }
-
-    let expectedAlert = AlertState<RepositoriesFeature.Alert> {
-      TextState("Failed to load repository")
-    } actions: {
-      ButtonState(role: .cancel) {
-        TextState("OK")
-      }
-    } message: {
-      TextState("boom")
     }
 
     await store.send(
@@ -136,11 +126,11 @@ struct RepositoriesFeatureTests {
         animated: false
       )
     ) {
-      $0.alert = expectedAlert
-      $0.repositories = [repository]
+      $0.loadFailuresByID = [repository.id: "boom"]
+      $0.repositories = []
     }
 
-    await store.receive(.delegate(.repositoriesChanged([repository])))
+    await store.receive(.delegate(.repositoriesChanged([])))
   }
 
   @Test func repositoriesLoadedUpdatesSelectedWorktreeDelegateOnChange() async {
@@ -149,7 +139,7 @@ struct RepositoriesFeatureTests {
     let repository = makeRepository(id: repoRoot, worktrees: [worktree])
     let updatedWorktree = makeWorktree(id: "/tmp/repo/main", name: "main-updated", repoRoot: repoRoot)
     let updatedRepository = makeRepository(id: repoRoot, worktrees: [updatedWorktree])
-    var initialState = RepositoriesFeature.State(repositories: [repository])
+    var initialState = makeState(repositories: [repository])
     initialState.selectedWorktreeID = worktree.id
     let store = TestStore(initialState: initialState) {
       RepositoriesFeature()
@@ -175,7 +165,7 @@ struct RepositoriesFeatureTests {
     let removedWorktree = makeWorktree(id: "/tmp/repo/feature", name: "feature", repoRoot: repoRoot)
     let repository = makeRepository(id: repoRoot, worktrees: [mainWorktree, removedWorktree])
     let updatedRepository = makeRepository(id: repoRoot, worktrees: [mainWorktree])
-    var initialState = RepositoriesFeature.State(repositories: [repository])
+    var initialState = makeState(repositories: [repository])
     initialState.selectedWorktreeID = mainWorktree.id
     initialState.deletingWorktreeIDs = [removedWorktree.id]
     initialState.pendingSetupScriptWorktreeIDs = [removedWorktree.id]
@@ -233,7 +223,7 @@ struct RepositoriesFeatureTests {
     let removedWorktree = makeWorktree(id: "/tmp/repo/feature", name: "feature", repoRoot: repoRoot)
     let repository = makeRepository(id: repoRoot, worktrees: [mainWorktree, removedWorktree])
     let updatedRepository = makeRepository(id: repoRoot, worktrees: [mainWorktree])
-    var initialState = RepositoriesFeature.State(repositories: [repository])
+    var initialState = makeState(repositories: [repository])
     initialState.selectedWorktreeID = removedWorktree.id
     initialState.deletingWorktreeIDs = [removedWorktree.id]
     let store = TestStore(initialState: initialState) {
@@ -275,7 +265,7 @@ struct RepositoriesFeatureTests {
     let newWorktree = makeWorktree(id: "/tmp/repo/wt-new", name: "new", repoRoot: repoRoot)
     let updatedRepository = makeRepository(id: repoRoot, worktrees: [newWorktree, existingWorktree])
     let pendingID = "pending:\(UUID().uuidString)"
-    var initialState = RepositoriesFeature.State(repositories: [repository])
+    var initialState = makeState(repositories: [repository])
     initialState.pendingWorktrees = [
       PendingWorktree(
         id: pendingID,
@@ -336,5 +326,11 @@ struct RepositoriesFeatureTests {
       name: "repo",
       worktrees: worktrees
     )
+  }
+
+  private func makeState(repositories: [Repository]) -> RepositoriesFeature.State {
+    var state = RepositoriesFeature.State(repositories: repositories)
+    state.repositoryRoots = repositories.map(\.rootURL)
+    return state
   }
 }
