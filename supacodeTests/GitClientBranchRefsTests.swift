@@ -107,4 +107,41 @@ struct GitClientBranchRefsTests {
 
     #expect(ref == "origin/main")
   }
+
+  @Test func automaticWorktreeBaseRefUsesResolvedDefault() async throws {
+    let shell = ShellClient(
+      run: { _, arguments, _ in
+        if arguments.contains("symbolic-ref") {
+          return ShellOutput(stdout: "refs/remotes/origin/develop\n", stderr: "", exitCode: 0)
+        }
+        if arguments.contains("rev-parse") {
+          return ShellOutput(stdout: "hash", stderr: "", exitCode: 0)
+        }
+        return ShellOutput(stdout: "", stderr: "", exitCode: 0)
+      },
+      runLogin: { _, _, _ in ShellOutput(stdout: "", stderr: "", exitCode: 0) }
+    )
+    let client = GitClient(shell: shell)
+
+    let ref = await client.automaticWorktreeBaseRef(for: URL(fileURLWithPath: "/tmp/repo"))
+
+    #expect(ref == "origin/develop")
+  }
+
+  @Test func automaticWorktreeBaseRefReturnsNilWhenUnavailable() async throws {
+    let shell = ShellClient(
+      run: { _, arguments, _ in
+        if arguments.contains("symbolic-ref") || arguments.contains("rev-parse") {
+          throw ShellClientError(command: "git", stdout: "", stderr: "missing", exitCode: 1)
+        }
+        return ShellOutput(stdout: "", stderr: "", exitCode: 0)
+      },
+      runLogin: { _, _, _ in ShellOutput(stdout: "", stderr: "", exitCode: 0) }
+    )
+    let client = GitClient(shell: shell)
+
+    let ref = await client.automaticWorktreeBaseRef(for: URL(fileURLWithPath: "/tmp/repo"))
+
+    #expect(ref == nil)
+  }
 }

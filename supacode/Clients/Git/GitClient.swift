@@ -165,6 +165,11 @@ struct GitClient {
     return nil
   }
 
+  nonisolated func automaticWorktreeBaseRef(for repoRoot: URL) async -> String? {
+    let resolved = try? await defaultRemoteBranchRef(for: repoRoot)
+    return resolved ?? nil
+  }
+
   nonisolated func createWorktree(
     named name: String,
     in repoRoot: URL,

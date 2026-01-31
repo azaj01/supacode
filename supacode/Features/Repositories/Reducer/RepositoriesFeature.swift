@@ -369,7 +369,7 @@ struct RepositoriesFeature {
             }
             let resolvedBaseRef: String
             if selectedBaseRef.isEmpty {
-              resolvedBaseRef = (try? await gitClient.defaultRemoteBranchRef(repository.rootURL)) ?? ""
+              resolvedBaseRef = await gitClient.automaticWorktreeBaseRef(repository.rootURL) ?? ""
             } else {
               resolvedBaseRef = selectedBaseRef
             }
