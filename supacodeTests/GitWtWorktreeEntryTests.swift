@@ -23,7 +23,7 @@ struct GitWtWorktreeEntryTests {
       GitWtWorktreeEntry(branch: "(bare)", path: "/tmp/repo.git", head: "", isBare: true),
       GitWtWorktreeEntry(branch: "main", path: "/tmp/worktree", head: "abc123", isBare: false),
     ]
-    let filtered = GitWtWorktreeEntry.filteringBare(entries)
+    let filtered = entries.filter { !$0.isBare }
     #expect(filtered.count == 1)
     #expect(filtered.first?.branch == "main")
   }

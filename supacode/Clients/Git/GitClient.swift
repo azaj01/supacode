@@ -67,9 +67,8 @@ struct GitClient {
       return []
     }
     let data = Data(trimmed.utf8)
-    let entries = GitWtWorktreeEntry.filteringBare(
-      try JSONDecoder().decode([GitWtWorktreeEntry].self, from: data)
-    )
+    let entries = try JSONDecoder().decode([GitWtWorktreeEntry].self, from: data)
+      .filter { !$0.isBare }
     let worktreeEntries = entries.enumerated().map { index, entry in
       let worktreeURL = URL(fileURLWithPath: entry.path).standardizedFileURL
       let name = entry.branch.isEmpty ? worktreeURL.lastPathComponent : entry.branch
@@ -575,7 +574,4 @@ struct GitWtWorktreeEntry: Decodable, Equatable {
     case isBare = "is_bare"
   }
 
-  static func filteringBare(_ entries: [GitWtWorktreeEntry]) -> [GitWtWorktreeEntry] {
-    entries.filter { !$0.isBare }
-  }
 }

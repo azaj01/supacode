@@ -59,9 +59,20 @@ struct RepositorySettingsFeature {
         }
 
       case .settingsLoaded(let settings, let isBareRepository):
-        state.settings = settings
+        var updatedSettings = settings
+        if isBareRepository {
+          updatedSettings.copyIgnoredOnWorktreeCreate = false
+          updatedSettings.copyUntrackedOnWorktreeCreate = false
+        }
+        state.settings = updatedSettings
         state.isBareRepository = isBareRepository
-        return .none
+        guard isBareRepository, updatedSettings != settings else { return .none }
+        let rootURL = state.rootURL
+        let repositorySettingsClient = repositorySettingsClient
+        return .run { send in
+          repositorySettingsClient.save(updatedSettings, rootURL)
+          await send(.delegate(.settingsChanged(rootURL)))
+        }
 
       case .branchDataLoaded(let branches, let defaultBaseRef):
         state.defaultWorktreeBaseRef = defaultBaseRef
@@ -107,6 +118,7 @@ struct RepositorySettingsFeature {
         }
 
       case .setCopyIgnoredOnWorktreeCreate(let isEnabled):
+        guard !state.isBareRepository else { return .none }
         state.settings.copyIgnoredOnWorktreeCreate = isEnabled
         let settings = state.settings
         let rootURL = state.rootURL
@@ -117,6 +129,7 @@ struct RepositorySettingsFeature {
         }
 
       case .setCopyUntrackedOnWorktreeCreate(let isEnabled):
+        guard !state.isBareRepository else { return .none }
         state.settings.copyUntrackedOnWorktreeCreate = isEnabled
         let settings = state.settings
         let rootURL = state.rootURL
