@@ -11,6 +11,8 @@ struct RepositoriesFeature {
   @ObservableState
   struct State: Equatable {
     var repositories: [Repository] = []
+    var repositoryRoots: [URL] = []
+    var loadFailuresByID: [Repository.ID: String] = [:]
     var selectedWorktreeID: Worktree.ID?
     var worktreeInfoByID: [Worktree.ID: WorktreeInfoEntry] = [:]
     var isOpenPanelPresented = false
@@ -70,6 +72,7 @@ struct RepositoriesFeature {
     )
     case worktreeRemovalFailed(String, worktreeID: Worktree.ID)
     case requestRemoveRepository(Repository.ID)
+    case removeFailedRepository(Repository.ID)
     case repositoryRemoved(Repository.ID, selectionWasRemoved: Bool)
     case pinWorktree(Worktree.ID)
     case unpinWorktree(Worktree.ID)
@@ -152,31 +155,23 @@ struct RepositoriesFeature {
 
       case .reloadRepositories(let animated):
         state.alert = nil
-        let roots = state.repositories.map(\.rootURL)
+        let roots = state.repositoryRoots
         guard !roots.isEmpty else { return .none }
         return loadRepositories(roots, animated: animated)
 
       case .repositoriesLoaded(let repositories, let failures, let roots, let animated):
         let previousSelection = state.selectedWorktreeID
         let previousSelectedWorktree = state.worktree(for: previousSelection)
-        let mergedRepositories = mergeRepositories(
-          roots: roots,
-          loaded: repositories,
-          failures: failures,
-          previous: state.repositories
-        )
+        let mergedRepositories = repositories
         let didPrunePinned = applyRepositories(
           mergedRepositories,
           state: &state,
           animated: animated
         )
-        let errors = failures.map(\.message)
-        if !errors.isEmpty {
-          state.alert = errorAlert(
-            title: errors.count == 1 ? "Failed to load repository" : "Failed to load repositories",
-            message: errors.joined(separator: "\n")
-          )
-        }
+        state.repositoryRoots = roots
+        state.loadFailuresByID = Dictionary(
+          uniqueKeysWithValues: failures.map { ($0.rootID, $0.message) }
+        )
         let selectedWorktree = state.worktree(for: state.selectedWorktreeID)
         let selectionChanged = previousSelectedWorktree != selectedWorktree
         var allEffects: [Effect<Action>] = [
@@ -230,16 +225,15 @@ struct RepositoriesFeature {
       case .openRepositoriesFinished(let repositories, let failures, let invalidRoots, let roots):
         let previousSelection = state.selectedWorktreeID
         let previousSelectedWorktree = state.worktree(for: previousSelection)
-        let mergedRepositories = mergeRepositories(
-          roots: roots,
-          loaded: repositories,
-          failures: failures,
-          previous: state.repositories
-        )
+        let mergedRepositories = repositories
         let didPrunePinned = applyRepositories(
           mergedRepositories,
           state: &state,
           animated: false
+        )
+        state.repositoryRoots = roots
+        state.loadFailuresByID = Dictionary(
+          uniqueKeysWithValues: failures.map { ($0.rootID, $0.message) }
         )
         if !invalidRoots.isEmpty {
           let message = invalidRoots.map { "\($0) is not a Git repository." }.joined(separator: "\n")
@@ -247,14 +241,6 @@ struct RepositoriesFeature {
             title: "Some folders couldn't be opened",
             message: message
           )
-        } else {
-          let errors = failures.map(\.message)
-          if !errors.isEmpty {
-            state.alert = errorAlert(
-              title: errors.count == 1 ? "Failed to load repository" : "Failed to load repositories",
-              message: errors.joined(separator: "\n")
-            )
-          }
         }
         let selectedWorktree = state.worktree(for: state.selectedWorktreeID)
         let selectionChanged = previousSelectedWorktree != selectedWorktree
@@ -577,6 +563,31 @@ struct RepositoriesFeature {
         state.alert = confirmationAlertForRepositoryRemoval(repositoryID: repositoryID, state: state)
         return .none
 
+      case .removeFailedRepository(let repositoryID):
+        state.alert = nil
+        state.loadFailuresByID.removeValue(forKey: repositoryID)
+        state.repositoryRoots.removeAll {
+          $0.standardizedFileURL.path(percentEncoded: false) == repositoryID
+        }
+        return .run { send in
+          let loadedPaths = await repositoryPersistence.loadRoots()
+          var seen: Set<String> = []
+          let rootPaths = loadedPaths.filter { seen.insert($0).inserted }
+          let remaining = rootPaths.filter { $0 != repositoryID }
+          await repositoryPersistence.saveRoots(remaining)
+          let roots = remaining.map { URL(fileURLWithPath: $0) }
+          let (repositories, failures) = await loadRepositoriesData(roots)
+          await send(
+            .repositoriesLoaded(
+              repositories,
+              failures: failures,
+              roots: roots,
+              animated: true
+            )
+          )
+        }
+        .cancellable(id: CancelID.load, cancelInFlight: true)
+
       case .alert(.presented(.confirmRemoveRepository(let repositoryID))):
         guard let repository = state.repositories.first(where: { $0.id == repositoryID }) else {
           return .none
@@ -781,7 +792,7 @@ struct RepositoriesFeature {
       let rootID = normalizedRoot.path(percentEncoded: false)
       do {
         let worktrees = try await gitClient.worktrees(root)
-        let name = repositoryName(from: normalizedRoot)
+        let name = Repository.name(for: normalizedRoot)
         let repository = Repository(
           id: rootID,
           rootURL: normalizedRoot,
@@ -867,38 +878,6 @@ struct RepositoriesFeature {
       state.shouldSelectFirstAfterReload = false
     }
     return didPrunePinned
-  }
-
-  private func mergeRepositories(
-    roots: [URL],
-    loaded: [Repository],
-    failures: [LoadFailure],
-    previous: [Repository]
-  ) -> [Repository] {
-    guard !roots.isEmpty else {
-      return loaded
-    }
-    let loadedByID = Dictionary(uniqueKeysWithValues: loaded.map { ($0.id, $0) })
-    let previousByID = Dictionary(uniqueKeysWithValues: previous.map { ($0.id, $0) })
-    let failedIDs = Set(failures.map(\.rootID))
-    var merged: [Repository] = []
-    merged.reserveCapacity(roots.count)
-    for root in roots {
-      let rootID = root.standardizedFileURL.path(percentEncoded: false)
-      if let repository = loadedByID[rootID] {
-        merged.append(repository)
-      } else if failedIDs.contains(rootID), let repository = previousByID[rootID] {
-        merged.append(repository)
-      }
-    }
-    if merged.isEmpty {
-      return loaded
-    }
-    let mergedIDs = Set(merged.map(\.id))
-    for repository in loaded where !mergedIDs.contains(repository.id) {
-      merged.append(repository)
-    }
-    return merged
   }
 
   private func errorAlert(title: String, message: String) -> AlertState<Alert> {
@@ -1353,12 +1332,4 @@ private func nextWorktreeID(
     return orderedIDs[index - 1]
   }
   return nil
-}
-
-private func repositoryName(from root: URL) -> String {
-  let name = root.lastPathComponent
-  if name.isEmpty {
-    return root.path(percentEncoded: false)
-  }
-  return name
 }
