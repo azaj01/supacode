@@ -11,14 +11,47 @@ struct SidebarListView: View {
       get: { store.selectedWorktreeID.map(SidebarSelection.worktree) },
       set: { store.send(.selectWorktree($0?.worktreeID)) }
     )
+    let state = store.state
+    let repositoryRoots = state.repositoryRoots
+    let repositoriesByID = Dictionary(uniqueKeysWithValues: store.repositories.map { ($0.id, $0) })
     List(selection: selection) {
-      ForEach(store.repositories) { repository in
-        RepositorySectionView(
-          repository: repository,
-          expandedRepoIDs: $expandedRepoIDs,
-          store: store,
-          terminalManager: terminalManager
-        )
+      if repositoryRoots.isEmpty {
+        ForEach(store.repositories) { repository in
+          RepositorySectionView(
+            repository: repository,
+            expandedRepoIDs: $expandedRepoIDs,
+            store: store,
+            terminalManager: terminalManager
+          )
+        }
+      } else {
+        ForEach(repositoryRoots, id: \.self) { rootURL in
+          let repositoryID = rootURL.standardizedFileURL.path(percentEncoded: false)
+          if let failureMessage = state.loadFailuresByID[repositoryID] {
+            let name = Repository.name(for: rootURL.standardizedFileURL)
+            let initials = Repository.initials(from: name)
+            let path = rootURL.standardizedFileURL.path(percentEncoded: false)
+            FailedRepositoryRow(
+              name: name,
+              initials: initials,
+              path: path,
+              showFailure: {
+                let message = "\(path)\n\n\(failureMessage)"
+                store.send(.presentAlert(title: "Unable to load \(name)", message: message))
+              },
+              removeRepository: {
+                store.send(.removeFailedRepository(repositoryID))
+              }
+            )
+          } else if let repository = repositoriesByID[repositoryID] {
+            RepositorySectionView(
+              repository: repository,
+              expandedRepoIDs: $expandedRepoIDs,
+              store: store,
+              terminalManager: terminalManager
+            )
+          }
+        }
       }
     }
     .listStyle(.sidebar)

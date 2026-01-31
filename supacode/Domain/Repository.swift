@@ -10,6 +10,14 @@ struct Repository: Identifiable, Hashable, Sendable {
     Self.initials(from: name)
   }
 
+  static func name(for rootURL: URL) -> String {
+    let name = rootURL.lastPathComponent
+    if name.isEmpty {
+      return rootURL.path(percentEncoded: false)
+    }
+    return name
+  }
+
   static func initials(from name: String) -> String {
     var parts: [String] = []
     var current = ""
