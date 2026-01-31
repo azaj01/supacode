@@ -6,6 +6,7 @@ nonisolated struct GlobalSettings: Codable, Equatable, Sendable {
   var inAppNotificationsEnabled: Bool
   var notificationSoundEnabled: Bool
   var githubIntegrationEnabled: Bool
+  var deleteBranchOnArchive: Bool
 
   static let `default` = GlobalSettings(
     appearanceMode: .dark,
@@ -14,7 +15,8 @@ nonisolated struct GlobalSettings: Codable, Equatable, Sendable {
     updatesAutomaticallyDownloadUpdates: false,
     inAppNotificationsEnabled: true,
     notificationSoundEnabled: true,
-    githubIntegrationEnabled: true
+    githubIntegrationEnabled: true,
+    deleteBranchOnArchive: true
   )
 
   init(
@@ -24,7 +26,8 @@ nonisolated struct GlobalSettings: Codable, Equatable, Sendable {
     updatesAutomaticallyDownloadUpdates: Bool,
     inAppNotificationsEnabled: Bool,
     notificationSoundEnabled: Bool,
-    githubIntegrationEnabled: Bool
+    githubIntegrationEnabled: Bool,
+    deleteBranchOnArchive: Bool
   ) {
     self.appearanceMode = appearanceMode
     self.confirmBeforeQuit = confirmBeforeQuit
@@ -33,6 +36,7 @@ nonisolated struct GlobalSettings: Codable, Equatable, Sendable {
     self.inAppNotificationsEnabled = inAppNotificationsEnabled
     self.notificationSoundEnabled = notificationSoundEnabled
     self.githubIntegrationEnabled = githubIntegrationEnabled
+    self.deleteBranchOnArchive = deleteBranchOnArchive
   }
 
   init(from decoder: any Decoder) throws {
@@ -52,5 +56,8 @@ nonisolated struct GlobalSettings: Codable, Equatable, Sendable {
     githubIntegrationEnabled =
       try container.decodeIfPresent(Bool.self, forKey: .githubIntegrationEnabled)
       ?? Self.default.githubIntegrationEnabled
+    deleteBranchOnArchive =
+      try container.decodeIfPresent(Bool.self, forKey: .deleteBranchOnArchive)
+      ?? Self.default.deleteBranchOnArchive
   }
 }

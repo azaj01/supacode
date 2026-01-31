@@ -15,7 +15,8 @@ struct SettingsFeatureTests {
       updatesAutomaticallyDownloadUpdates: true,
       inAppNotificationsEnabled: false,
       notificationSoundEnabled: true,
-      githubIntegrationEnabled: true
+      githubIntegrationEnabled: true,
+      deleteBranchOnArchive: false
     )
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
@@ -32,6 +33,7 @@ struct SettingsFeatureTests {
       $0.inAppNotificationsEnabled = false
       $0.notificationSoundEnabled = true
       $0.githubIntegrationEnabled = true
+      $0.deleteBranchOnArchive = false
     }
     await store.receive(.delegate(.settingsChanged(loaded)))
   }
@@ -44,7 +46,8 @@ struct SettingsFeatureTests {
       updatesAutomaticallyDownloadUpdates: false,
       inAppNotificationsEnabled: false,
       notificationSoundEnabled: false,
-      githubIntegrationEnabled: true
+      githubIntegrationEnabled: true,
+      deleteBranchOnArchive: true
     )
     let saved = LockIsolated<GlobalSettings?>(nil)
     let store = TestStore(initialState: SettingsFeature.State(settings: initialSettings)) {
@@ -68,7 +71,8 @@ struct SettingsFeatureTests {
       updatesAutomaticallyDownloadUpdates: initialSettings.updatesAutomaticallyDownloadUpdates,
       inAppNotificationsEnabled: initialSettings.inAppNotificationsEnabled,
       notificationSoundEnabled: initialSettings.notificationSoundEnabled,
-      githubIntegrationEnabled: initialSettings.githubIntegrationEnabled
+      githubIntegrationEnabled: initialSettings.githubIntegrationEnabled,
+      deleteBranchOnArchive: initialSettings.deleteBranchOnArchive
     )
     await store.receive(.delegate(.settingsChanged(expectedSettings)))
 
@@ -111,7 +115,8 @@ struct SettingsFeatureTests {
       updatesAutomaticallyDownloadUpdates: true,
       inAppNotificationsEnabled: false,
       notificationSoundEnabled: false,
-      githubIntegrationEnabled: true
+      githubIntegrationEnabled: true,
+      deleteBranchOnArchive: true
     )
 
     await store.send(.settingsLoaded(loaded)) {
@@ -122,6 +127,7 @@ struct SettingsFeatureTests {
       $0.inAppNotificationsEnabled = false
       $0.notificationSoundEnabled = false
       $0.githubIntegrationEnabled = true
+      $0.deleteBranchOnArchive = true
       $0.selection = selection
       $0.repositorySettings = RepositorySettingsFeature.State(
         rootURL: rootURL,

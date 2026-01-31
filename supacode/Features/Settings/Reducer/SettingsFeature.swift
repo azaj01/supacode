@@ -12,6 +12,7 @@ struct SettingsFeature {
     var inAppNotificationsEnabled: Bool
     var notificationSoundEnabled: Bool
     var githubIntegrationEnabled: Bool
+    var deleteBranchOnArchive: Bool
     var selection: SettingsSection = .general
     var repositorySettings: RepositorySettingsFeature.State?
 
@@ -23,6 +24,7 @@ struct SettingsFeature {
       inAppNotificationsEnabled = settings.inAppNotificationsEnabled
       notificationSoundEnabled = settings.notificationSoundEnabled
       githubIntegrationEnabled = settings.githubIntegrationEnabled
+      deleteBranchOnArchive = settings.deleteBranchOnArchive
     }
 
     var globalSettings: GlobalSettings {
@@ -33,7 +35,8 @@ struct SettingsFeature {
         updatesAutomaticallyDownloadUpdates: updatesAutomaticallyDownloadUpdates,
         inAppNotificationsEnabled: inAppNotificationsEnabled,
         notificationSoundEnabled: notificationSoundEnabled,
-        githubIntegrationEnabled: githubIntegrationEnabled
+        githubIntegrationEnabled: githubIntegrationEnabled,
+        deleteBranchOnArchive: deleteBranchOnArchive
       )
     }
   }
@@ -48,6 +51,7 @@ struct SettingsFeature {
     case setInAppNotificationsEnabled(Bool)
     case setNotificationSoundEnabled(Bool)
     case setGithubIntegrationEnabled(Bool)
+    case setDeleteBranchOnArchive(Bool)
     case setSelection(SettingsSection)
     case repositorySettings(RepositorySettingsFeature.Action)
     case delegate(Delegate)
@@ -76,6 +80,7 @@ struct SettingsFeature {
         state.inAppNotificationsEnabled = settings.inAppNotificationsEnabled
         state.notificationSoundEnabled = settings.notificationSoundEnabled
         state.githubIntegrationEnabled = settings.githubIntegrationEnabled
+        state.deleteBranchOnArchive = settings.deleteBranchOnArchive
         return .send(.delegate(.settingsChanged(settings)))
 
       case .setAppearanceMode(let mode):
@@ -130,6 +135,18 @@ struct SettingsFeature {
 
       case .setNotificationSoundEnabled(let value):
         state.notificationSoundEnabled = value
+        let settings = state.globalSettings
+        return .merge(
+          .send(.delegate(.settingsChanged(settings))),
+          .run { _ in
+            await settingsClient.save(settings)
+          }
+        )
+
+      case .setGithubIntegrationEnabled(let value):
+        state.githubIntegrationEnabled = value
+      case .setDeleteBranchOnArchive(let value):
+        state.deleteBranchOnArchive = value
         let settings = state.globalSettings
         return .merge(
           .send(.delegate(.settingsChanged(settings))),
