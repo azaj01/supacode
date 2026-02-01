@@ -190,11 +190,10 @@ struct WorktreeDetailView: View {
         }
 
       }
-      ToolbarSpacer(.fixed)
 
       ToolbarSpacer(.flexible)
 
-      ToolbarItem {
+      ToolbarItemGroup {
 
         openMenu(
           openActionSelection: toolbarState.openActionSelection,
@@ -230,12 +229,7 @@ struct WorktreeDetailView: View {
           shortcutHint: showExtras ? AppShortcuts.openFinder.display : nil
         )
       }
-      .buttonStyle(.borderless)
-      .padding(8)
       .help(openActionHelpText(for: resolvedOpenActionSelection, isDefault: true))
-
-      Divider()
-        .frame(height: 16)
 
       Menu {
         ForEach(availableActions) { action in
@@ -255,8 +249,6 @@ struct WorktreeDetailView: View {
           .monospaced()
           .accessibilityLabel("Open in menu")
       }
-      .buttonStyle(.borderless)
-      .padding(8)
       .imageScale(.small)
       .menuIndicator(.hidden)
       .fixedSize()
