@@ -11,13 +11,23 @@ struct WindowTabbingDisabler: NSViewRepresentable {
   }
 }
 
-final class WindowTabbingView: NSView {
+final class WindowTabbingView: NSView, NSWindowDelegate {
   override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
     disallowTabbing()
   }
 
   func disallowTabbing() {
-    window?.tabbingMode = .disallowed
+    guard let window else { return }
+    window.tabbingMode = .disallowed
+    window.identifier = NSUserInterfaceItemIdentifier("main")
+    if window.delegate !== self {
+      window.delegate = self
+    }
+  }
+
+  func windowShouldClose(_ sender: NSWindow) -> Bool {
+    sender.orderOut(nil)
+    return false
   }
 }
