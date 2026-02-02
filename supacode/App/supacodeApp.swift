@@ -26,9 +26,27 @@ private enum GhosttyCLI {
   }()
 }
 
+@MainActor
+final class SupacodeAppDelegate: NSObject, NSApplicationDelegate {
+  func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows _: Bool) -> Bool {
+    guard let window = sender.windows.first(where: { $0.identifier?.rawValue == "main" }) else {
+      return false
+    }
+    if !window.isVisible {
+      window.makeKeyAndOrderFront(nil)
+    }
+    return false
+  }
+
+  func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+    false
+  }
+}
+
 @main
 @MainActor
 struct SupacodeApp: App {
+  @NSApplicationDelegateAdaptor(SupacodeAppDelegate.self) private var appDelegate
   @State private var ghostty: GhosttyRuntime
   @State private var ghosttyShortcuts: GhosttyShortcutManager
   @State private var terminalManager: WorktreeTerminalManager
