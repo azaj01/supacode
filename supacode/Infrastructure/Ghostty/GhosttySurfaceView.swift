@@ -20,7 +20,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
   private let initialInputCString: UnsafeMutablePointer<CChar>?
   private var trackingArea: NSTrackingArea?
   private var lastBackingSize: CGSize = .zero
-  private var pendingFocus = false
   private var lastPerformKeyEvent: TimeInterval?
   private var currentCursor: NSCursor = .iBeam
   private var focused = false
@@ -151,20 +150,8 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
-    if window == nil, focused {
-      focused = false
-      setSurfaceFocus(false)
-      onFocusChange?(false)
-      if passwordInput {
-        SecureInput.shared.setScoped(ObjectIdentifier(self), focused: false)
-      }
-    }
     updateContentScale()
     updateSurfaceSize()
-    if pendingFocus, let window {
-      pendingFocus = false
-      window.makeFirstResponder(self)
-    }
   }
 
   override func viewDidChangeBackingProperties() {
@@ -552,11 +539,31 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   func requestFocus() {
-    if window == nil {
-      pendingFocus = true
-      return
+    Self.moveFocus(to: self)
+  }
+
+  static func moveFocus(
+    to view: GhosttySurfaceView,
+    from previous: GhosttySurfaceView? = nil,
+    delay: TimeInterval? = nil
+  ) {
+    let maxDelay: TimeInterval = 0.5
+    let currentDelay = delay ?? 0
+    guard currentDelay < maxDelay else { return }
+    let nextDelay: TimeInterval = if let delay { delay * 2 } else { 0.05 }
+    Task { @MainActor in
+      if let delay {
+        try? await Task.sleep(for: .seconds(delay))
+      }
+      guard let window = view.window else {
+        moveFocus(to: view, from: previous, delay: nextDelay)
+        return
+      }
+      if let previous, previous !== view {
+        _ = previous.resignFirstResponder()
+      }
+      window.makeFirstResponder(view)
     }
-    window?.makeFirstResponder(self)
   }
 
   override func performKeyEquivalent(with event: NSEvent) -> Bool {

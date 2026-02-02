@@ -483,8 +483,10 @@ final class WorktreeTerminalState {
   }
 
   private func focusSurface(_ surface: GhosttySurfaceView, in tabId: TerminalTabID) {
+    let previousSurface = focusedSurfaceIdByTab[tabId].flatMap { surfaces[$0] }
     focusedSurfaceIdByTab[tabId] = surface.id
-    surface.requestFocus()
+    let fromSurface = (previousSurface === surface) ? nil : previousSurface
+    GhosttySurfaceView.moveFocus(to: surface, from: fromSurface)
     updateTabTitle(for: tabId)
     emitFocusChangedIfNeeded(surface.id)
   }
