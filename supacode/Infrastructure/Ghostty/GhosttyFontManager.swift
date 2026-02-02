@@ -7,12 +7,12 @@ import SwiftUI
 @MainActor
 @Observable
 final class GhosttyFontManager {
-  private let probeSurface: GhosttySurfaceView
+  private let runtime: GhosttyRuntime
   private var observer: NSObjectProtocol?
   private var familyName: String?
 
   init(runtime: GhosttyRuntime) {
-    self.probeSurface = GhosttySurfaceView(runtime: runtime, workingDirectory: nil)
+    self.runtime = runtime
     refresh()
     observer = NotificationCenter.default.addObserver(
       forName: .ghosttyRuntimeConfigDidChange,
@@ -32,7 +32,7 @@ final class GhosttyFontManager {
   func font(for style: Font.TextStyle, weight: Font.Weight = .regular) -> Font {
     if let familyName {
       let size = preferredSize(for: style)
-      return .custom(familyName, size: size, relativeTo: style).weight(weight)
+      return .custom(familyName, size: size).weight(weight)
     }
     return .system(style, design: .monospaced).weight(weight)
   }
@@ -66,7 +66,9 @@ final class GhosttyFontManager {
   }
 
   private func resolveFamilyName() -> String? {
-    guard let surface = probeSurface.surface else { return nil }
+    let surfaceView = GhosttySurfaceView(runtime: runtime, workingDirectory: nil)
+    defer { surfaceView.closeSurface() }
+    guard let surface = surfaceView.surface else { return nil }
     guard let fontRaw = ghostty_surface_quicklook_font(surface) else { return nil }
     let unmanaged = Unmanaged<CTFont>.fromOpaque(fontRaw)
     let font = unmanaged.takeUnretainedValue()
