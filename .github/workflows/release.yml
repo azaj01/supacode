@@ -329,6 +329,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          MAX_DELTAS=10
           NOTES_FILE=build/release-notes.md
           STAGING=$(mktemp -d)
           ARCHIVE=build/supacode.app.zip
@@ -341,7 +342,7 @@ jobs:
 
           RELEASE_REPO_SH="supabitapp/supacode-sh"
           SEEN_VERSIONS=""
-          for i in $(seq 1 5); do
+          for i in $(seq 1 $MAX_DELTAS); do
             PREV_TAG=$(gh release list --limit $i --exclude-drafts --exclude-pre-releases -R "$RELEASE_REPO_SH" --json tagName --jq ".[$((i-1))].tagName" 2>/dev/null || true)
             if [ -n "$PREV_TAG" ] && [ "$PREV_TAG" != "$TAG" ]; then
               echo "Downloading $PREV_TAG for delta generation..."
@@ -359,7 +360,7 @@ jobs:
             fi
           done
 
-          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | ./bins/generate_appcast --download-url-prefix "https://supacode.sh/download/$TAG/" --embed-release-notes --maximum-versions 10 --maximum-deltas 10 --delta-compression lzma --ed-key-file - "$STAGING"
+          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | ./bins/generate_appcast --download-url-prefix "https://supacode.sh/download/$TAG/" --full-release-notes-url "https://github.com/supabitapp/supacode-sh/releases" --embed-release-notes --maximum-versions $MAX_DELTAS --maximum-deltas $MAX_DELTAS --delta-compression lzma --ed-key-file - "$STAGING"
           cp "$STAGING/appcast.xml" build/appcast.xml
           find "$STAGING" -name "*.delta" -exec cp {} build/ \; 2>/dev/null || true
       - uses: actions/upload-artifact@v4
