@@ -6,6 +6,7 @@ enum GitOperation: String {
   case worktreeList = "worktree_list"
   case worktreeCreate = "worktree_create"
   case worktreeRemove = "worktree_remove"
+  case worktreePrune = "worktree_prune"
   case repoIsBare = "repo_is_bare"
   case branchNames = "branch_names"
   case branchRefs = "branch_refs"
@@ -101,6 +102,14 @@ struct GitClient {
         return lhs.index < rhs.index
       }
       .map(\.worktree)
+  }
+
+  nonisolated func pruneWorktrees(for repoRoot: URL) async throws {
+    let path = repoRoot.path(percentEncoded: false)
+    _ = try await runGit(
+      operation: .worktreePrune,
+      arguments: ["-C", path, "worktree", "prune"]
+    )
   }
 
   nonisolated func localBranchNames(for repoRoot: URL) async throws -> Set<String> {
