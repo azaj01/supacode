@@ -606,7 +606,7 @@ private func commandPaletteItems(
       CommandPaletteItem(
         id: "worktree.\(row.id).run",
         title: title,
-        subtitle: actionSubtitle(action: "Run", detail: detail),
+        subtitle: detail,
         kind: .runWorktree(row.id)
       )
     )
@@ -614,7 +614,7 @@ private func commandPaletteItems(
       CommandPaletteItem(
         id: "worktree.\(row.id).editor",
         title: title,
-        subtitle: actionSubtitle(action: "Open in Editor", detail: detail),
+        subtitle: detail,
         kind: .openWorktreeInEditor(row.id)
       )
     )
@@ -623,20 +623,13 @@ private func commandPaletteItems(
         CommandPaletteItem(
           id: "worktree.\(row.id).remove",
           title: title,
-          subtitle: actionSubtitle(action: "Remove Worktree", detail: detail),
+          subtitle: detail,
           kind: .removeWorktree(row.id, row.repositoryID)
         )
       )
     }
   }
   return items
-}
-
-private func actionSubtitle(action: String, detail: String?) -> String? {
-  if let detail, !detail.isEmpty {
-    return "\(action) - \(detail)"
-  }
-  return action
 }
 
 private struct ActionLabelReducer<Base: Reducer>: Reducer {

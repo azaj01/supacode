@@ -25,10 +25,10 @@ struct CommandPaletteItem: Identifiable, Equatable {
   }
 
   func matches(query: String) -> Bool {
-    if title.localizedStandardContains(query) {
+    if title.localizedCaseInsensitiveContains(query) {
       return true
     }
-    if let subtitle, subtitle.localizedStandardContains(query) {
+    if let subtitle, subtitle.localizedCaseInsensitiveContains(query) {
       return true
     }
     return false

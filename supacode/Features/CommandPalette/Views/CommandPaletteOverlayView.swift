@@ -1,60 +1,63 @@
 import ComposableArchitecture
 import SwiftUI
 
-private typealias MoveDirection = CommandPaletteFeature.MoveDirection
-
 struct CommandPaletteOverlayView: View {
   @Bindable var store: StoreOf<CommandPaletteFeature>
   @FocusState private var isQueryFocused: Bool
   @State private var hoveredID: CommandPaletteItem.ID?
 
   var body: some View {
-    if store.isPresented {
-      ZStack(alignment: .top) {
-        Button {
-          store.send(.setPresented(false))
-        } label: {
-          Color.clear
-        }
-        .buttonStyle(.plain)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .contentShape(.rect)
-        .accessibilityHidden(true)
+    ZStack {
+      if store.isPresented {
+        GeometryReader { geometry in
+          VStack {
+            Spacer().frame(height: geometry.size.height * 0.05)
 
-        CommandPaletteCard(
-          query: $store.query,
-          selectedIndex: $store.selectedIndex,
-          items: store.filteredItems,
-          hoveredID: $hoveredID,
-          isQueryFocused: $isQueryFocused,
-          onEvent: { event in
-            switch event {
-            case .exit:
-              store.send(.setPresented(false))
-            case .submit:
-              store.send(.submitSelected)
-            case .move(let direction):
-              store.send(.moveSelection(direction))
+            CommandPaletteCard(
+              query: $store.query,
+              selectedIndex: $store.selectedIndex,
+              items: store.filteredItems,
+              hoveredID: $hoveredID,
+              isQueryFocused: _isQueryFocused,
+              onEvent: { event in
+                switch event {
+                case .exit:
+                  store.send(.setPresented(false))
+                case .submit:
+                  store.send(.submitSelected)
+                case .move(let direction):
+                  switch direction {
+                  case .up:
+                    store.send(.moveSelection(.up))
+                  case .down:
+                    store.send(.moveSelection(.down))
+                  default:
+                    break
+                  }
+                }
+              },
+              activateShortcut: { index in
+                store.send(.activateShortcut(index))
+              },
+              activate: { id in
+                store.send(.activateItem(id))
+              }
+            )
+            .zIndex(1)
+            .task {
+              isQueryFocused = store.isPresented
             }
-          },
-          activateShortcut: { index in
-            store.send(.activateShortcut(index))
-          },
-          activate: { id in
-            store.send(.activateItem(id))
+
+            Spacer()
           }
-        )
-        .padding()
-      }
-      .ignoresSafeArea()
-      .onChange(of: store.isPresented) { _, newValue in
-        isQueryFocused = newValue
-        if !newValue {
-          hoveredID = nil
+          .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
         }
       }
-      .task {
-        isQueryFocused = true
+    }
+    .onChange(of: store.isPresented) { _, newValue in
+      isQueryFocused = newValue
+      if !newValue {
+        hoveredID = nil
       }
     }
   }
@@ -65,14 +68,22 @@ private struct CommandPaletteCard: View {
   @Binding var selectedIndex: Int?
   let items: [CommandPaletteItem]
   @Binding var hoveredID: CommandPaletteItem.ID?
-  @FocusState.Binding var isQueryFocused: Bool
+  let isQueryFocused: FocusState<Bool>
   let onEvent: (CommandPaletteKeyboardEvent) -> Void
   let activateShortcut: (Int) -> Void
   let activate: (CommandPaletteItem.ID) -> Void
 
+  private var backgroundColor: Color {
+    Color(nsColor: .windowBackgroundColor)
+  }
+
+  private var colorScheme: ColorScheme {
+    NSColor.windowBackgroundColor.isLightColor ? .light : .dark
+  }
+
   var body: some View {
-    VStack {
-      CommandPaletteQueryField(query: $query, isQueryFocused: _isQueryFocused) { event in
+    VStack(alignment: .leading, spacing: 0) {
+      CommandPaletteQuery(query: $query, isTextFieldFocused: isQueryFocused) { event in
         onEvent(event)
       }
 
@@ -90,49 +101,100 @@ private struct CommandPaletteCard: View {
         activate(id)
       }
     }
-    .frame(maxWidth: 520)
-    .background(.regularMaterial)
-    .clipShape(.rect(cornerRadius: 12, style: .continuous))
-    .overlay(
-      RoundedRectangle(cornerRadius: 12, style: .continuous)
-        .stroke(.quaternary, lineWidth: 1)
+    .frame(maxWidth: 500)
+    .background(
+      ZStack {
+        Rectangle().fill(.ultraThinMaterial)
+        Rectangle()
+          .fill(backgroundColor)
+          .blendMode(.color)
+      }
+      .compositingGroup()
     )
-    .shadow(radius: 24)
-  }
-}
-
-private struct CommandPaletteQueryField: View {
-  @Binding var query: String
-  @FocusState.Binding var isQueryFocused: Bool
-  var onEvent: (CommandPaletteKeyboardEvent) -> Void
-
-  var body: some View {
-    ZStack {
-      TextField("Search...", text: $query)
-        .textFieldStyle(.plain)
-        .padding()
-        .font(.title3)
-        .focused($isQueryFocused)
-        .onExitCommand { onEvent(.exit) }
-        .onMoveCommand {
-          switch $0 {
-          case .up:
-            onEvent(.move(.up))
-          case .down:
-            onEvent(.move(.down))
-          default:
-            break
-          }
-        }
-        .onSubmit { onEvent(.submit) }
-    }
+    .clipShape(RoundedRectangle(cornerRadius: 10))
+    .overlay(
+      RoundedRectangle(cornerRadius: 10)
+        .stroke(Color(nsColor: .tertiaryLabelColor).opacity(0.75))
+    )
+    .shadow(radius: 32, x: 0, y: 12)
+    .padding()
+    .environment(\.colorScheme, colorScheme)
   }
 }
 
 private enum CommandPaletteKeyboardEvent: Equatable {
   case exit
   case submit
-  case move(MoveDirection)
+  case move(MoveCommandDirection)
+}
+
+private struct CommandPaletteQuery: View {
+  @Binding var query: String
+  var onEvent: ((CommandPaletteKeyboardEvent) -> Void)?
+  @FocusState private var isTextFieldFocused: Bool
+
+  init(
+    query: Binding<String>,
+    isTextFieldFocused: FocusState<Bool>,
+    onEvent: ((CommandPaletteKeyboardEvent) -> Void)? = nil
+  ) {
+    _query = query
+    self.onEvent = onEvent
+    _isTextFieldFocused = isTextFieldFocused
+  }
+
+  var body: some View {
+    ZStack {
+      Group {
+        Button {
+          onEvent?(.move(.up))
+        } label: {
+          Color.clear
+        }
+        .buttonStyle(PlainButtonStyle())
+        .keyboardShortcut(.upArrow, modifiers: [])
+        Button {
+          onEvent?(.move(.down))
+        } label: {
+          Color.clear
+        }
+        .buttonStyle(PlainButtonStyle())
+        .keyboardShortcut(.downArrow, modifiers: [])
+
+        Button {
+          onEvent?(.move(.up))
+        } label: {
+          Color.clear
+        }
+        .buttonStyle(PlainButtonStyle())
+        .keyboardShortcut(.init("p"), modifiers: [.control])
+        Button {
+          onEvent?(.move(.down))
+        } label: {
+          Color.clear
+        }
+        .buttonStyle(PlainButtonStyle())
+        .keyboardShortcut(.init("n"), modifiers: [.control])
+      }
+      .frame(width: 0, height: 0)
+      .accessibilityHidden(true)
+
+      TextField("Execute a command…", text: $query)
+        .padding()
+        .font(.system(size: 20, weight: .light))
+        .frame(height: 48)
+        .textFieldStyle(.plain)
+        .focused($isTextFieldFocused)
+        .onChange(of: isTextFieldFocused) { focused in
+          if !focused {
+            onEvent?(.exit)
+          }
+        }
+        .onExitCommand { onEvent?(.exit) }
+        .onMoveCommand { onEvent?(.move($0)) }
+        .onSubmit { onEvent?(.submit) }
+    }
+  }
 }
 
 private struct CommandPaletteList: View {
@@ -149,8 +211,8 @@ private struct CommandPaletteList: View {
     } else {
       ScrollViewReader { proxy in
         ScrollView {
-          VStack {
-            ForEach(rows.enumerated(), id: \.element.id) { index, row in
+          VStack(alignment: .leading, spacing: 4) {
+            ForEach(Array(rows.enumerated()), id: \.1.id) { index, row in
               CommandPaletteRowView(
                 row: row,
                 shortcutIndex: index < 5 ? index : nil,
@@ -162,11 +224,10 @@ private struct CommandPaletteList: View {
               .id(row.id)
             }
           }
-          .padding()
+          .padding(10)
         }
-        .frame(maxHeight: 240)
-        .scrollIndicators(.hidden)
-        .onChange(of: selectedIndex) { _, _ in
+        .frame(maxHeight: 200)
+        .onChange(of: selectedIndex) { _ in
           guard let selectedIndex, rows.indices.contains(selectedIndex) else { return }
           proxy.scrollTo(rows[selectedIndex].id)
         }
@@ -190,13 +251,59 @@ private struct CommandPaletteRowView: View {
   @Binding var hoveredID: CommandPaletteItem.ID?
   let activate: () -> Void
 
+  private var badge: String? {
+    switch row.kind {
+    case .openSettings, .newWorktree, .worktreeSelect:
+      return nil
+    case .runWorktree:
+      return "Run"
+    case .openWorktreeInEditor:
+      return "Editor"
+    case .removeWorktree:
+      return "Remove"
+    }
+  }
+
+  private var leadingIcon: String? {
+    switch row.kind {
+    case .openSettings:
+      return "gearshape"
+    case .newWorktree:
+      return "plus"
+    case .worktreeSelect:
+      return nil
+    case .runWorktree:
+      return "play.fill"
+    case .openWorktreeInEditor:
+      return "pencil"
+    case .removeWorktree:
+      return "trash"
+    }
+  }
+
+  private var emphasis: Bool {
+    switch row.kind {
+    case .openSettings, .newWorktree:
+      return true
+    case .worktreeSelect, .runWorktree, .openWorktreeInEditor, .removeWorktree:
+      return false
+    }
+  }
+
   var body: some View {
     Button(action: activate) {
-      HStack {
-        VStack(alignment: .leading) {
+      HStack(spacing: 8) {
+        if let leadingIcon {
+          Image(systemName: leadingIcon)
+            .foregroundStyle(emphasis ? Color.accentColor : .secondary)
+            .font(.system(size: 14, weight: .medium))
+        }
+
+        VStack(alignment: .leading, spacing: 2) {
           Text(row.title)
-            .foregroundStyle(.primary)
-          if let subtitle = row.subtitle, !subtitle.isEmpty {
+            .fontWeight(emphasis ? .medium : .regular)
+
+          if let subtitle = row.subtitle {
             Text(subtitle)
               .font(.caption)
               .foregroundStyle(.secondary)
@@ -205,17 +312,30 @@ private struct CommandPaletteRowView: View {
 
         Spacer()
 
+        if let badge, !badge.isEmpty {
+          Text(badge)
+            .font(.caption2.weight(.medium))
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(
+              Capsule().fill(Color.accentColor.opacity(0.15))
+            )
+            .foregroundStyle(Color.accentColor)
+        }
+
         if let shortcutIndex {
-          ShortcutHintView(
-            text: commandPaletteShortcutDisplay(for: shortcutIndex),
-            color: .secondary
-          )
-          .monospaced()
+          ShortcutSymbolsView(symbols: commandPaletteShortcutSymbols(for: shortcutIndex))
+            .foregroundStyle(.secondary)
         }
       }
-      .padding()
+      .padding(8)
+      .contentShape(Rectangle())
       .background(rowBackground)
-      .clipShape(.rect(cornerRadius: 8, style: .continuous))
+      .overlay(
+        RoundedRectangle(cornerRadius: 5)
+          .strokeBorder(Color.accentColor.opacity(emphasis && !isSelected ? 0.3 : 0), lineWidth: 1.5)
+      )
+      .cornerRadius(5)
     }
     .buttonStyle(.plain)
     .help(helpText)
@@ -229,7 +349,7 @@ private struct CommandPaletteRowView: View {
       if isSelected {
         Color.accentColor.opacity(0.2)
       } else if hoveredID == row.id {
-        Color.secondary.opacity(0.15)
+        Color.secondary.opacity(0.2)
       } else {
         Color.clear
       }
@@ -253,9 +373,22 @@ private struct CommandPaletteRowView: View {
       base = "Open \(row.title) in Editor"
     }
     if let shortcutIndex {
-      return "\(base) (\(commandPaletteShortcutDisplay(for: shortcutIndex)))"
+      return "\(base) (\(commandPaletteShortcutLabel(for: shortcutIndex)))"
     }
     return base
+  }
+}
+
+private struct ShortcutSymbolsView: View {
+  let symbols: [String]
+
+  var body: some View {
+    HStack(spacing: 1) {
+      ForEach(symbols, id: \.self) { symbol in
+        Text(symbol)
+          .frame(minWidth: 13)
+      }
+    }
   }
 }
 
@@ -296,6 +429,26 @@ private struct CommandPaletteShortcutHandler: View {
   }
 }
 
-private func commandPaletteShortcutDisplay(for index: Int) -> String {
+private func commandPaletteShortcutSymbols(for index: Int) -> [String] {
+  ["⌘", "\(index + 1)"]
+}
+
+private func commandPaletteShortcutLabel(for index: Int) -> String {
   "Cmd+\(index + 1)"
+}
+
+extension NSColor {
+  fileprivate var isLightColor: Bool {
+    luminance > 0.5
+  }
+
+  fileprivate var luminance: Double {
+    var red: CGFloat = 0
+    var green: CGFloat = 0
+    var blue: CGFloat = 0
+    var alpha: CGFloat = 0
+    guard let rgb = usingColorSpace(.sRGB) else { return 0 }
+    rgb.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    return (0.299 * red) + (0.587 * green) + (0.114 * blue)
+  }
 }
