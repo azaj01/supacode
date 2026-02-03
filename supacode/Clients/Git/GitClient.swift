@@ -472,18 +472,12 @@ struct GitClient {
   nonisolated private func runWtList(repoRoot: URL) async throws -> String {
     let wtURL = try wtScriptURL()
     let arguments = ["ls", "--json"]
-    print(
-      "\(wtURL.lastPathComponent) \(arguments.joined(separator: " "))"
-    )
-    let output = try await runLoginShellProcess(
+    return try await runLoginShellProcess(
       operation: .worktreeList,
       executableURL: wtURL,
       arguments: arguments,
       currentDirectoryURL: repoRoot
     )
-    print(output)
-    print()
-    return output
   }
 
   nonisolated private func wtScriptURL() throws -> URL {
