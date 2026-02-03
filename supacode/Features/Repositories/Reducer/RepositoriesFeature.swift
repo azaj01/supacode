@@ -1104,7 +1104,7 @@ struct RepositoriesFeature {
     }
     let didPrunePinned = prunePinnedWorktreeIDs(state: &state)
     let didPruneRepositoryOrder = pruneRepositoryOrderIDs(roots: roots, state: &state)
-    let didPruneWorktreeOrder = pruneWorktreeOrderByRepository(state: &state)
+    let didPruneWorktreeOrder = pruneWorktreeOrderByRepository(roots: roots, state: &state)
     if !isSelectionValid(state.selectedWorktreeID, state: state) {
       state.selectedWorktreeID = nil
     }
@@ -1461,7 +1461,10 @@ extension RepositoriesFeature.State {
   }
 
   func orderedWorktreeRows() -> [WorktreeRowModel] {
-    repositories.flatMap { worktreeRows(in: $0) }
+    let repositoriesByID = Dictionary(uniqueKeysWithValues: repositories.map { ($0.id, $0) })
+    return orderedRepositoryIDs()
+      .compactMap { repositoriesByID[$0] }
+      .flatMap { worktreeRows(in: $0) }
   }
 }
 
@@ -1663,13 +1666,20 @@ private func pruneRepositoryOrderIDs(
 }
 
 private func pruneWorktreeOrderByRepository(
+  roots: [URL],
   state: inout RepositoriesFeature.State
 ) -> Bool {
+  let rootIDs = Set(roots.map { $0.standardizedFileURL.path(percentEncoded: false) })
   let repositoriesByID = Dictionary(uniqueKeysWithValues: state.repositories.map { ($0.id, $0) })
   let pinnedSet = Set(state.pinnedWorktreeIDs)
   var pruned: [Repository.ID: [Worktree.ID]] = [:]
   for (repoID, order) in state.worktreeOrderByRepository {
-    guard let repository = repositoriesByID[repoID] else { continue }
+    guard let repository = repositoriesByID[repoID] else {
+      if rootIDs.contains(repoID), !order.isEmpty {
+        pruned[repoID] = order
+      }
+      continue
+    }
     let mainID = repository.worktrees.first(where: { state.isMainWorktree($0) })?.id
     let availableIDs = Set(repository.worktrees.map(\.id))
     var seen: Set<Worktree.ID> = []

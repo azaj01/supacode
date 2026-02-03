@@ -115,6 +115,31 @@ struct RepositoriesFeatureTests {
     )
   }
 
+  @Test func orderedWorktreeRowsRespectRepositoryOrderIDs() {
+    let repoA = makeRepository(
+      id: "/tmp/repo-a",
+      worktrees: [
+        makeWorktree(id: "/tmp/repo-a/wt1", name: "wt1", repoRoot: "/tmp/repo-a")
+      ]
+    )
+    let repoB = makeRepository(
+      id: "/tmp/repo-b",
+      worktrees: [
+        makeWorktree(id: "/tmp/repo-b/wt2", name: "wt2", repoRoot: "/tmp/repo-b")
+      ]
+    )
+    var state = makeState(repositories: [repoA, repoB])
+    state.repositoryOrderIDs = [repoB.id, repoA.id]
+
+    expectNoDifference(
+      state.orderedWorktreeRows().map(\.id),
+      [
+        "/tmp/repo-b/wt2",
+        "/tmp/repo-a/wt1",
+      ]
+    )
+  }
+
   @Test func orderedRepositoryRootsAppendMissing() {
     let repoA = makeRepository(id: "/tmp/repo-a", worktrees: [])
     let repoB = makeRepository(id: "/tmp/repo-b", worktrees: [])
@@ -211,6 +236,39 @@ struct RepositoriesFeatureTests {
     }
 
     await store.receive(\.delegate.repositoriesChanged)
+  }
+
+  @Test func worktreeOrderPreservedWhenRepositoryLoadFails() async {
+    let repoRoot = "/tmp/repo"
+    let worktree1 = makeWorktree(id: "/tmp/repo/wt1", name: "wt1", repoRoot: repoRoot)
+    let worktree2 = makeWorktree(id: "/tmp/repo/wt2", name: "wt2", repoRoot: repoRoot)
+    let repository = makeRepository(id: repoRoot, worktrees: [worktree1, worktree2])
+    var initialState = makeState(repositories: [repository])
+    initialState.worktreeOrderByRepository = [
+      repoRoot: [worktree1.id, worktree2.id]
+    ]
+    let store = TestStore(initialState: initialState) {
+      RepositoriesFeature()
+    }
+
+    await store.send(
+      .repositoriesLoaded(
+        [],
+        failures: [RepositoriesFeature.LoadFailure(rootID: repository.id, message: "boom")],
+        roots: [repository.rootURL],
+        animated: false
+      )
+    ) {
+      $0.loadFailuresByID = [repository.id: "boom"]
+      $0.repositories = []
+      $0.isInitialLoadComplete = true
+    }
+
+    await store.receive(\.delegate.repositoriesChanged)
+    expectNoDifference(
+      store.state.worktreeOrderByRepository,
+      [repoRoot: [worktree1.id, worktree2.id]]
+    )
   }
 
   @Test func repositoriesLoadedUpdatesSelectedWorktreeDelegateOnChange() async {
