@@ -156,9 +156,9 @@ struct CommandPaletteFeature {
     guard !trimmed.isEmpty else { return globalItems }
     let worktreeItems = items.filter {
       switch $0.kind {
-      case .worktreeSelect:
+      case .worktreeSelect, .runWorktree:
         return true
-      case .openSettings, .newWorktree, .removeWorktree, .runWorktree, .openWorktreeInEditor:
+      case .openSettings, .newWorktree, .removeWorktree, .openWorktreeInEditor:
         return false
       }
     }

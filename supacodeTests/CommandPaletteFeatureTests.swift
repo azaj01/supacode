@@ -63,7 +63,7 @@ struct CommandPaletteFeatureTests {
 
     expectNoDifference(
       store.state.filteredItems.map(\.id),
-      [selectFox.id]
+      [selectFox.id, runFox.id]
     )
   }
 
@@ -74,15 +74,15 @@ struct CommandPaletteFeatureTests {
       subtitle: "main",
       kind: .worktreeSelect("wt-fox")
     )
-    let selectBear = CommandPaletteItem(
-      id: "worktree.bear.select",
-      title: "Repo / bear",
-      subtitle: "dev",
-      kind: .worktreeSelect("wt-bear")
+    let runFox = CommandPaletteItem(
+      id: "worktree.fox.run",
+      title: "Repo / fox",
+      subtitle: "Run - main",
+      kind: .runWorktree("wt-fox")
     )
     var state = CommandPaletteFeature.State()
-    state.items = [selectFox, selectBear]
-    state.query = "repo"
+    state.items = [selectFox, runFox]
+    state.query = "fox"
     state.selectedIndex = 0
     let store = TestStore(initialState: state) {
       CommandPaletteFeature()
@@ -112,10 +112,16 @@ struct CommandPaletteFeatureTests {
       subtitle: "dev",
       kind: .worktreeSelect("wt-bear")
     )
+    let runBear = CommandPaletteItem(
+      id: "worktree.bear.run",
+      title: "Repo / bear",
+      subtitle: "Run - dev",
+      kind: .runWorktree("wt-bear")
+    )
     var state = CommandPaletteFeature.State()
     state.isPresented = true
-    state.items = [selectFox, selectBear]
-    state.query = "repo"
+    state.items = [selectFox, selectBear, runBear]
+    state.query = "bear"
     state.selectedIndex = 1
     let store = TestStore(initialState: state) {
       CommandPaletteFeature()
@@ -126,6 +132,6 @@ struct CommandPaletteFeatureTests {
       $0.query = ""
       $0.selectedIndex = nil
     }
-    await store.receive(.delegate(.selectWorktree("wt-bear")))
+    await store.receive(.delegate(.runWorktree("wt-bear")))
   }
 }
