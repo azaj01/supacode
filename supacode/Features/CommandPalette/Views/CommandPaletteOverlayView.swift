@@ -39,6 +39,9 @@ struct CommandPaletteOverlayView: View {
       .ignoresSafeArea()
       .onChange(of: store.isPresented) { _, newValue in
         isQueryFocused = newValue
+        if !newValue {
+          hoveredID = nil
+        }
       }
       .task {
         isQueryFocused = true
@@ -170,11 +173,6 @@ private struct CommandPaletteQueryField: View {
         .padding()
         .font(.title3)
         .focused($isQueryFocused)
-        .onChange(of: isQueryFocused) { _, newValue in
-          if !newValue {
-            onEvent(.exit)
-          }
-        }
         .onExitCommand { onEvent(.exit) }
         .onMoveCommand {
           switch $0 {
