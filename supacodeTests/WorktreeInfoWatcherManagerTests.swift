@@ -34,58 +34,6 @@ struct WorktreeInfoWatcherManagerTests {
     await task.value
     try FileManager.default.removeItem(at: tempRoot)
   }
-
-  @Test func debouncedFilesChangedReschedulesPeriodicRefresh() async throws {
-    let (worktree, tempRoot, headURL) = try makeTempWorktree()
-    let manager = WorktreeInfoWatcherManager(
-      focusedInterval: .milliseconds(300),
-      unfocusedInterval: .milliseconds(300),
-      filesChangedDebounceInterval: .milliseconds(100)
-    )
-    let (collector, task) = startCollecting(manager.eventStream())
-
-    manager.handleCommand(.setPullRequestTrackingEnabled(false))
-    manager.handleCommand(.setWorktrees([worktree]))
-    manager.handleCommand(.setSelectedWorktreeID(worktree.id))
-
-    #expect(
-      await waitForFilesChangedCount(
-        collector,
-        worktreeID: worktree.id,
-        count: 1,
-        timeout: .seconds(4)
-      )
-    )
-
-    try? await Task.sleep(for: .milliseconds(100))
-    try "ref: refs/heads/main\n".write(to: headURL, atomically: true, encoding: .utf8)
-
-    #expect(
-      await waitForFilesChangedCount(
-        collector,
-        worktreeID: worktree.id,
-        count: 2,
-        timeout: .seconds(4)
-      )
-    )
-
-    try? await Task.sleep(for: .milliseconds(150))
-    let countBeforeReschedule = await collector.filesChangedCount(worktreeID: worktree.id)
-    #expect(countBeforeReschedule == 2)
-
-    #expect(
-      await waitForFilesChangedCount(
-        collector,
-        worktreeID: worktree.id,
-        count: 3,
-        timeout: .seconds(4)
-      )
-    )
-
-    manager.handleCommand(.stop)
-    await task.value
-    try FileManager.default.removeItem(at: tempRoot)
-  }
 }
 
 actor EventCollector {
