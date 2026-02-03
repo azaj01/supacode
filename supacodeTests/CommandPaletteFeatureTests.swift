@@ -25,8 +25,26 @@ struct CommandPaletteFeatureTests {
       subtitle: "main",
       kind: .worktreeSelect("wt-fox")
     )
+    let runFox = CommandPaletteItem(
+      id: "worktree.fox.run",
+      title: "Repo / fox",
+      subtitle: "Run - main",
+      kind: .runWorktree("wt-fox")
+    )
+    let editorFox = CommandPaletteItem(
+      id: "worktree.fox.editor",
+      title: "Repo / fox",
+      subtitle: "Open in Editor - main",
+      kind: .openWorktreeInEditor("wt-fox")
+    )
+    let removeFox = CommandPaletteItem(
+      id: "worktree.fox.remove",
+      title: "Repo / fox",
+      subtitle: "Remove Worktree - main",
+      kind: .removeWorktree("wt-fox", "repo-fox")
+    )
     var state = CommandPaletteFeature.State()
-    state.items = [openSettings, newWorktree, selectFox]
+    state.items = [openSettings, newWorktree, selectFox, runFox, editorFox, removeFox]
 
     expectNoDifference(state.filteredItems, [openSettings, newWorktree])
   }
@@ -75,7 +93,7 @@ struct CommandPaletteFeatureTests {
 
     expectNoDifference(
       store.state.filteredItems.map(\.id),
-      [selectFox.id, runFox.id]
+      [selectFox.id, runFox.id, editorFox.id, removeFox.id]
     )
   }
 

@@ -9,49 +9,58 @@ struct CommandPaletteOverlayView: View {
   var body: some View {
     ZStack {
       if store.isPresented {
-        GeometryReader { geometry in
-          VStack {
-            Spacer().frame(height: geometry.size.height * 0.05)
-
-            CommandPaletteCard(
-              query: $store.query,
-              selectedIndex: $store.selectedIndex,
-              items: store.filteredItems,
-              hoveredID: $hoveredID,
-              isQueryFocused: _isQueryFocused,
-              onEvent: { event in
-                switch event {
-                case .exit:
-                  store.send(.setPresented(false))
-                case .submit:
-                  store.send(.submitSelected)
-                case .move(let direction):
-                  switch direction {
-                  case .up:
-                    store.send(.moveSelection(.up))
-                  case .down:
-                    store.send(.moveSelection(.down))
-                  default:
-                    break
-                  }
-                }
-              },
-              activateShortcut: { index in
-                store.send(.activateShortcut(index))
-              },
-              activate: { id in
-                store.send(.activateItem(id))
-              }
-            )
-            .zIndex(1)
-            .task {
-              isQueryFocused = store.isPresented
+        ZStack {
+          Color.clear
+            .contentShape(.rect)
+            .onTapGesture {
+              store.send(.setPresented(false))
             }
 
-            Spacer()
+          GeometryReader { geometry in
+            VStack {
+              Spacer().frame(height: geometry.size.height * 0.05)
+
+              CommandPaletteCard(
+                query: $store.query,
+                selectedIndex: $store.selectedIndex,
+                items: store.filteredItems,
+                hoveredID: $hoveredID,
+                isQueryFocused: _isQueryFocused,
+                onEvent: { event in
+                  switch event {
+                  case .exit:
+                    store.send(.setPresented(false))
+                  case .submit:
+                    store.send(.submitSelected)
+                  case .move(let direction):
+                    switch direction {
+                    case .up:
+                      store.send(.moveSelection(.up))
+                    case .down:
+                      store.send(.moveSelection(.down))
+                    default:
+                      break
+                    }
+                  }
+                },
+                activateShortcut: { index in
+                  store.send(.activateShortcut(index))
+                },
+                activate: { id in
+                  store.send(.activateItem(id))
+                }
+              )
+              .zIndex(1)
+              .task {
+                isQueryFocused = store.isPresented
+              }
+
+              Spacer()
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
           }
-          .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
         }
+        .ignoresSafeArea()
       }
     }
     .onChange(of: store.isPresented) { _, newValue in
