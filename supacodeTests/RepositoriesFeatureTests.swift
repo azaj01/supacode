@@ -271,7 +271,7 @@ struct RepositoriesFeatureTests {
     )
   }
 
-  @Test func repositoriesLoadedUpdatesSelectedWorktreeDelegateOnChange() async {
+  @Test func repositoriesLoadedSkipsSelectionChangeWhenOnlyDisplayDataChanges() async {
     let repoRoot = "/tmp/repo"
     let worktree = makeWorktree(id: "/tmp/repo/main", name: "main", repoRoot: repoRoot)
     let repository = makeRepository(id: repoRoot, worktrees: [worktree])
@@ -292,6 +292,34 @@ struct RepositoriesFeatureTests {
       )
     ) {
       $0.repositories = [updatedRepository]
+      $0.isInitialLoadComplete = true
+    }
+    await store.receive(\.delegate.repositoriesChanged)
+    await store.finish()
+  }
+
+  @Test func repositoriesLoadedUpdatesSelectedWorktreeDelegateOnSelectionChange() async {
+    let repoRoot = "/tmp/repo"
+    let selectedWorktree = makeWorktree(id: "/tmp/repo/main", name: "main", repoRoot: repoRoot)
+    let remainingWorktree = makeWorktree(id: "/tmp/repo/next", name: "next", repoRoot: repoRoot)
+    let repository = makeRepository(id: repoRoot, worktrees: [selectedWorktree, remainingWorktree])
+    let updatedRepository = makeRepository(id: repoRoot, worktrees: [remainingWorktree])
+    var initialState = makeState(repositories: [repository])
+    initialState.selectedWorktreeID = selectedWorktree.id
+    let store = TestStore(initialState: initialState) {
+      RepositoriesFeature()
+    }
+
+    await store.send(
+      .repositoriesLoaded(
+        [updatedRepository],
+        failures: [],
+        roots: [repository.rootURL],
+        animated: false
+      )
+    ) {
+      $0.repositories = [updatedRepository]
+      $0.selectedWorktreeID = nil
       $0.isInitialLoadComplete = true
     }
     await store.receive(\.delegate.repositoriesChanged)
@@ -348,7 +376,6 @@ struct RepositoriesFeatureTests {
     await store.receive(\.repositoriesLoaded) {
       $0.isInitialLoadComplete = true
     }
-    await store.receive(\.delegate.repositoriesChanged)
   }
 
   @Test func worktreeRemovedResetsSelectionWhenDriftedToDeletingWorktree() async {
@@ -384,7 +411,6 @@ struct RepositoriesFeatureTests {
     await store.receive(\.repositoriesLoaded) {
       $0.isInitialLoadComplete = true
     }
-    await store.receive(\.delegate.repositoriesChanged)
   }
 
   @Test func createRandomWorktreeSucceededSendsRepositoriesChanged() async {
@@ -430,7 +456,6 @@ struct RepositoriesFeatureTests {
     await store.receive(\.repositoriesLoaded) {
       $0.isInitialLoadComplete = true
     }
-    await store.receive(\.delegate.repositoriesChanged)
   }
 
   private func makeWorktree(id: String, name: String, repoRoot: String = "/tmp/repo") -> Worktree {

@@ -280,17 +280,34 @@ struct GitClient {
   }
 
   nonisolated func lineChanges(at worktreeURL: URL) async -> (added: Int, removed: Int)? {
+    if isWorktreeIndexLocked(worktreeURL) {
+      return nil
+    }
     let path = worktreeURL.path(percentEncoded: false)
     do {
       let diff = try await runGit(
         operation: .lineChanges,
-        arguments: ["-C", path, "diff", "HEAD", "--numstat"]
+        arguments: ["-C", path, "diff", "HEAD", "--shortstat"]
       )
-      let changes = parseNumstat(diff)
+      let changes = parseShortstat(diff)
       return (added: changes.added, removed: changes.removed)
     } catch {
       return nil
     }
+  }
+
+  nonisolated private func isWorktreeIndexLocked(_ worktreeURL: URL) -> Bool {
+    guard
+      let headURL = GitWorktreeHeadResolver.headURL(
+        for: worktreeURL,
+        fileManager: .default
+      )
+    else {
+      return false
+    }
+    let gitDirectory = headURL.deletingLastPathComponent()
+    let lockURL = gitDirectory.appending(path: "index.lock")
+    return FileManager.default.fileExists(atPath: lockURL.path(percentEncoded: false))
   }
 
   nonisolated func remoteInfo(for repositoryRoot: URL) async -> GithubRemoteInfo? {
@@ -371,17 +388,20 @@ struct GitClient {
     return worktree.workingDirectory
   }
 
-  nonisolated private func parseNumstat(_ output: String) -> (added: Int, removed: Int) {
-    output
-      .split(whereSeparator: \.isNewline)
-      .reduce(into: (added: 0, removed: 0)) { result, line in
-        let parts = line.split(separator: "\t", omittingEmptySubsequences: false)
-        guard parts.count >= 2 else { return }
-        let added = Int(parts[0]) ?? 0
-        let removed = Int(parts[1]) ?? 0
-        result.added += added
-        result.removed += removed
-      }
+  nonisolated private func parseShortstat(_ output: String) -> (added: Int, removed: Int) {
+    let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+      return (0, 0)
+    }
+    var added = 0
+    var removed = 0
+    if let match = trimmed.firstMatch(of: /(\d+)\s+insertions?\(\+\)/) {
+      added = Int(match.1) ?? 0
+    }
+    if let match = trimmed.firstMatch(of: /(\d+)\s+deletions?\(-\)/) {
+      removed = Int(match.1) ?? 0
+    }
+    return (added, removed)
   }
 
   nonisolated private func parseLocalRefsWithUpstream(_ output: String) -> [String] {
