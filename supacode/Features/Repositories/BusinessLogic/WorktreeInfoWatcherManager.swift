@@ -14,11 +14,12 @@ final class WorktreeInfoWatcherManager {
     let task: Task<Void, Never>
   }
 
-  private enum RefreshTiming {
-    static let focused = Duration.seconds(30)
-    static let unfocused = Duration.seconds(60)
+  private struct RefreshTiming: Equatable {
+    let focused: Duration
+    let unfocused: Duration
   }
 
+  private let refreshTiming: RefreshTiming
   private var worktrees: [Worktree.ID: Worktree] = [:]
   private var headWatchers: [Worktree.ID: HeadWatcher] = [:]
   private var branchDebounceTasks: [Worktree.ID: Task<Void, Never>] = [:]
@@ -26,9 +27,17 @@ final class WorktreeInfoWatcherManager {
   private var restartTasks: [Worktree.ID: Task<Void, Never>] = [:]
   private var pullRequestTasks: [URL: RefreshTask] = [:]
   private var lineChangeTasks: [Worktree.ID: RefreshTask] = [:]
+  private var deferredLineChangeIDs: Set<Worktree.ID> = []
   private var selectedWorktreeID: Worktree.ID?
   private var pullRequestTrackingEnabled = true
   private var eventContinuation: AsyncStream<WorktreeInfoWatcherClient.Event>.Continuation?
+
+  init(
+    focusedInterval: Duration = .seconds(30),
+    unfocusedInterval: Duration = .seconds(60)
+  ) {
+    refreshTiming = RefreshTiming(focused: focusedInterval, unfocused: unfocusedInterval)
+  }
 
   func handleCommand(_ command: WorktreeInfoWatcherClient.Command) {
     switch command {
@@ -58,10 +67,20 @@ final class WorktreeInfoWatcherManager {
     for id in removedIDs {
       stopWatcher(for: id)
     }
+    if !removedIDs.isEmpty {
+      deferredLineChangeIDs.subtract(removedIDs)
+    }
+    let newIDs = desiredIDs.subtracting(currentIDs)
+    if !newIDs.isEmpty {
+      deferredLineChangeIDs.formUnion(newIDs)
+    }
     self.worktrees = worktreesByID
     for worktree in worktrees {
       configureWatcher(for: worktree)
-      updateLineChangeSchedule(worktreeID: worktree.id, immediate: true)
+      updateLineChangeSchedule(
+        worktreeID: worktree.id,
+        immediate: !deferredLineChangeIDs.contains(worktree.id)
+      )
     }
     let repositoryRoots = Set(worktrees.map(\.repositoryRootURL))
     for repositoryRootURL in repositoryRoots {
@@ -239,6 +258,7 @@ final class WorktreeInfoWatcherManager {
     restartTasks.removeAll()
     pullRequestTasks.removeAll()
     lineChangeTasks.removeAll()
+    deferredLineChangeIDs.removeAll()
     worktrees.removeAll()
     selectedWorktreeID = nil
     pullRequestTrackingEnabled = true
@@ -274,7 +294,7 @@ final class WorktreeInfoWatcherManager {
       return
     }
     let isFocused = selectedWorktreeID.map { worktreeIDs.contains($0) } ?? false
-    let interval = isFocused ? RefreshTiming.focused : RefreshTiming.unfocused
+    let interval = isFocused ? refreshTiming.focused : refreshTiming.unfocused
     if let existing = pullRequestTasks[repositoryRootURL], existing.interval == interval, !immediate {
       return
     }
@@ -316,13 +336,17 @@ final class WorktreeInfoWatcherManager {
     guard worktrees[worktreeID] != nil else {
       return
     }
-    let interval = worktreeID == selectedWorktreeID ? RefreshTiming.focused : RefreshTiming.unfocused
+    let interval = worktreeID == selectedWorktreeID ? refreshTiming.focused : refreshTiming.unfocused
+    let shouldEmit = immediate && !deferredLineChangeIDs.contains(worktreeID)
     updateRepeatingTask(
       worktreeID: worktreeID,
       interval: interval,
-      immediate: immediate,
+      immediate: shouldEmit,
       tasks: &lineChangeTasks
-    ) { .filesChanged(worktreeID: $0) }
+    ) { [weak self] worktreeID in
+      self?.deferredLineChangeIDs.remove(worktreeID)
+      return .filesChanged(worktreeID: worktreeID)
+    }
   }
 
   private func updateRepeatingTask(
@@ -354,6 +378,11 @@ final class WorktreeInfoWatcherManager {
   }
 
   private func emit(_ event: WorktreeInfoWatcherClient.Event) {
+    if case .filesChanged(let worktreeID) = event,
+      deferredLineChangeIDs.contains(worktreeID)
+    {
+      return
+    }
     eventContinuation?.yield(event)
   }
 }
