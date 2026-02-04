@@ -16,7 +16,7 @@ struct RepositoriesFeatureTests {
     }
 
     await store.send(.selectWorktree(worktree.id)) {
-      $0.selectedWorktreeID = worktree.id
+      $0.selection = .worktree(worktree.id)
     }
     await store.receive(\.delegate.selectedWorktreeChanged)
   }
@@ -277,7 +277,7 @@ struct RepositoriesFeatureTests {
     let updatedWorktree = makeWorktree(id: "/tmp/repo/main", name: "main-updated", repoRoot: repoRoot)
     let updatedRepository = makeRepository(id: repoRoot, worktrees: [updatedWorktree])
     var initialState = makeState(repositories: [repository])
-    initialState.selectedWorktreeID = worktree.id
+    initialState.selection = .worktree(worktree.id)
     let store = TestStore(initialState: initialState) {
       RepositoriesFeature()
     }
@@ -304,7 +304,7 @@ struct RepositoriesFeatureTests {
     let repository = makeRepository(id: repoRoot, worktrees: [selectedWorktree, remainingWorktree])
     let updatedRepository = makeRepository(id: repoRoot, worktrees: [remainingWorktree])
     var initialState = makeState(repositories: [repository])
-    initialState.selectedWorktreeID = selectedWorktree.id
+    initialState.selection = .worktree(selectedWorktree.id)
     let store = TestStore(initialState: initialState) {
       RepositoriesFeature()
     }
@@ -318,7 +318,7 @@ struct RepositoriesFeatureTests {
       )
     ) {
       $0.repositories = [updatedRepository]
-      $0.selectedWorktreeID = nil
+      $0.selection = nil
       $0.isInitialLoadComplete = true
     }
     await store.receive(\.delegate.repositoriesChanged)
@@ -332,7 +332,7 @@ struct RepositoriesFeatureTests {
     let repository = makeRepository(id: repoRoot, worktrees: [mainWorktree, removedWorktree])
     let updatedRepository = makeRepository(id: repoRoot, worktrees: [mainWorktree])
     var initialState = makeState(repositories: [repository])
-    initialState.selectedWorktreeID = mainWorktree.id
+    initialState.selection = .worktree(mainWorktree.id)
     initialState.deletingWorktreeIDs = [removedWorktree.id]
     initialState.pendingSetupScriptWorktreeIDs = [removedWorktree.id]
     initialState.pendingTerminalFocusWorktreeIDs = [removedWorktree.id]
@@ -384,7 +384,7 @@ struct RepositoriesFeatureTests {
     let repository = makeRepository(id: repoRoot, worktrees: [mainWorktree, removedWorktree])
     let updatedRepository = makeRepository(id: repoRoot, worktrees: [mainWorktree])
     var initialState = makeState(repositories: [repository])
-    initialState.selectedWorktreeID = removedWorktree.id
+    initialState.selection = .worktree(removedWorktree.id)
     initialState.deletingWorktreeIDs = [removedWorktree.id]
     let store = TestStore(initialState: initialState) {
       RepositoriesFeature()
@@ -402,7 +402,7 @@ struct RepositoriesFeatureTests {
     ) {
       $0.deletingWorktreeIDs = []
       $0.repositories = [updatedRepository]
-      $0.selectedWorktreeID = mainWorktree.id
+      $0.selection = .worktree(mainWorktree.id)
     }
     await store.receive(\.delegate.repositoriesChanged)
     await store.receive(\.delegate.selectedWorktreeChanged)
@@ -428,7 +428,7 @@ struct RepositoriesFeatureTests {
         detail: ""
       ),
     ]
-    initialState.selectedWorktreeID = pendingID
+    initialState.selection = .worktree(pendingID)
     let store = TestStore(initialState: initialState) {
       RepositoriesFeature()
     } withDependencies: {
@@ -445,7 +445,7 @@ struct RepositoriesFeatureTests {
       $0.pendingSetupScriptWorktreeIDs.insert(newWorktree.id)
       $0.pendingTerminalFocusWorktreeIDs.insert(newWorktree.id)
       $0.pendingWorktrees = []
-      $0.selectedWorktreeID = newWorktree.id
+      $0.selection = .worktree(newWorktree.id)
       $0.repositories = [updatedRepository]
     }
 

@@ -8,13 +8,29 @@ struct SidebarListView: View {
 
   var body: some View {
     let selection = Binding<SidebarSelection?>(
-      get: { store.selectedWorktreeID.map(SidebarSelection.worktree) },
-      set: { store.send(.selectWorktree($0?.worktreeID)) }
+      get: {
+        if store.isShowingArchivedWorktrees {
+          return .archivedWorktrees
+        }
+        return store.selectedWorktreeID.map(SidebarSelection.worktree)
+      },
+      set: { newValue in
+        switch newValue {
+        case .archivedWorktrees:
+          store.send(.selectArchivedWorktrees)
+        case .worktree(let id):
+          store.send(.selectWorktree(id))
+        case nil:
+          store.send(.selectWorktree(nil))
+        }
+      }
     )
     let state = store.state
     let orderedRoots = state.orderedRepositoryRoots()
     let repositoriesByID = Dictionary(uniqueKeysWithValues: store.repositories.map { ($0.id, $0) })
     List(selection: selection) {
+      Label("Archived Worktrees", systemImage: "archivebox")
+        .tag(SidebarSelection.archivedWorktrees)
       if orderedRoots.isEmpty {
         ForEach(store.repositories) { repository in
           RepositorySectionView(

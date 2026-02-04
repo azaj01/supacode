@@ -24,7 +24,9 @@ struct WorktreeDetailView: View {
     let runScriptEnabled = hasActiveWorktree && runScriptConfigured
     let runScriptIsRunning = selectedWorktree.flatMap { state.runScriptStatusByWorktreeID[$0.id] } == true
     let content = Group {
-      if let loadingInfo {
+      if repositories.isShowingArchivedWorktrees {
+        ArchivedWorktreesDetailView()
+      } else if let loadingInfo {
         WorktreeLoadingView(info: loadingInfo)
       } else if let selectedWorktree {
         let shouldRunSetupScript = repositories.pendingSetupScriptWorktreeIDs.contains(selectedWorktree.id)

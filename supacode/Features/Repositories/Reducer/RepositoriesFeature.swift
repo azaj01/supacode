@@ -16,7 +16,7 @@ struct RepositoriesFeature {
     var repositoryRoots: [URL] = []
     var repositoryOrderIDs: [Repository.ID] = []
     var loadFailuresByID: [Repository.ID: String] = [:]
-    var selectedWorktreeID: Worktree.ID?
+    var selection: SidebarSelection?
     var worktreeInfoByID: [Worktree.ID: WorktreeInfoEntry] = [:]
     var worktreeOrderByRepository: [Repository.ID: [Worktree.ID]] = [:]
     var isOpenPanelPresented = false
@@ -45,6 +45,7 @@ struct RepositoriesFeature {
     case refreshWorktrees
     case reloadRepositories(animated: Bool)
     case repositoriesLoaded([Repository], failures: [LoadFailure], roots: [URL], animated: Bool)
+    case selectArchivedWorktrees
     case openRepositories([URL])
     case openRepositoriesFinished(
       [Repository],
@@ -341,8 +342,12 @@ struct RepositoriesFeature {
         }
         return .merge(allEffects)
 
+      case .selectArchivedWorktrees:
+        state.selection = .archivedWorktrees
+        return .send(.delegate(.selectedWorktreeChanged(nil)))
+
       case .selectWorktree(let worktreeID):
-        state.selectedWorktreeID = worktreeID
+        state.selection = worktreeID.map(SidebarSelection.worktree)
         let selectedWorktree = state.worktree(for: worktreeID)
         return .send(.delegate(.selectedWorktreeChanged(selectedWorktree)))
 
@@ -425,7 +430,7 @@ struct RepositoriesFeature {
             detail: ""
           )
         )
-        state.selectedWorktreeID = pendingID
+        state.selection = .worktree(pendingID)
         let existingNames = Set(repository.worktrees.map { $0.name.lowercased() })
         return .run { send in
           var newWorktreeName: String?
@@ -498,8 +503,8 @@ struct RepositoriesFeature {
         state.pendingSetupScriptWorktreeIDs.insert(worktree.id)
         state.pendingTerminalFocusWorktreeIDs.insert(worktree.id)
         removePendingWorktree(pendingID, state: &state)
-        if state.selectedWorktreeID == pendingID {
-          state.selectedWorktreeID = worktree.id
+        if state.selection == .worktree(pendingID) {
+          state.selection = .worktree(worktree.id)
         }
         insertWorktree(worktree, repositoryID: repositoryID, state: &state)
         return .merge(
@@ -678,10 +683,10 @@ struct RepositoriesFeature {
           didUpdateWorktreeOrder = true
         }
         _ = removeWorktree(worktreeID, repositoryID: repositoryID, state: &state)
-        let selectionNeedsUpdate = state.selectedWorktreeID == worktreeID
+        let selectionNeedsUpdate = state.selection == .worktree(worktreeID)
         if selectionNeedsUpdate {
-          state.selectedWorktreeID =
-            nextSelection ?? firstAvailableWorktreeID(in: repositoryID, state: state)
+          let nextWorktreeID = nextSelection ?? firstAvailableWorktreeID(in: repositoryID, state: state)
+          state.selection = nextWorktreeID.map(SidebarSelection.worktree)
         }
         let roots = state.repositories.map(\.rootURL)
         let repositories = state.repositories
@@ -812,7 +817,7 @@ struct RepositoriesFeature {
         analyticsClient.capture("repository_removed", nil)
         state.removingRepositoryIDs.remove(repositoryID)
         if selectionWasRemoved {
-          state.selectedWorktreeID = nil
+          state.selection = nil
           state.shouldSelectFirstAfterReload = true
         }
         let selectedWorktree = state.worktree(for: state.selectedWorktreeID)
@@ -1204,19 +1209,20 @@ struct RepositoriesFeature {
     let didPrunePinned = prunePinnedWorktreeIDs(state: &state)
     let didPruneRepositoryOrder = pruneRepositoryOrderIDs(roots: roots, state: &state)
     let didPruneWorktreeOrder = pruneWorktreeOrderByRepository(roots: roots, state: &state)
-    if !isSelectionValid(state.selectedWorktreeID, state: state) {
-      state.selectedWorktreeID = nil
+    if !state.isShowingArchivedWorktrees, !isSelectionValid(state.selectedWorktreeID, state: state) {
+      state.selection = nil
     }
     if state.shouldRestoreLastFocusedWorktree {
       state.shouldRestoreLastFocusedWorktree = false
-      if state.selectedWorktreeID == nil,
+      if state.selection == nil,
         isSelectionValid(state.lastFocusedWorktreeID, state: state)
       {
-        state.selectedWorktreeID = state.lastFocusedWorktreeID
+        state.selection = state.lastFocusedWorktreeID.map(SidebarSelection.worktree)
       }
     }
-    if state.selectedWorktreeID == nil, state.shouldSelectFirstAfterReload {
-      state.selectedWorktreeID = firstAvailableWorktreeID(from: repositories, state: state)
+    if state.selection == nil, state.shouldSelectFirstAfterReload {
+      state.selection = firstAvailableWorktreeID(from: repositories, state: state)
+        .map(SidebarSelection.worktree)
       state.shouldSelectFirstAfterReload = false
     }
     return ApplyRepositoriesResult(
@@ -1282,6 +1288,14 @@ struct RepositoriesFeature {
 }
 
 extension RepositoriesFeature.State {
+  var selectedWorktreeID: Worktree.ID? {
+    selection?.worktreeID
+  }
+
+  var isShowingArchivedWorktrees: Bool {
+    selection == .archivedWorktrees
+  }
+
   func worktreeInfo(for worktreeID: Worktree.ID) -> WorktreeInfoEntry? {
     worktreeInfoByID[worktreeID]
   }
@@ -1823,11 +1837,11 @@ private func restoreSelection(
   pendingID: Worktree.ID,
   state: inout RepositoriesFeature.State
 ) {
-  guard state.selectedWorktreeID == pendingID else { return }
+  guard state.selection == .worktree(pendingID) else { return }
   if isSelectionValid(id, state: state) {
-    state.selectedWorktreeID = id
+    state.selection = id.map(SidebarSelection.worktree)
   } else {
-    state.selectedWorktreeID = nil
+    state.selection = nil
   }
 }
 
