@@ -56,6 +56,9 @@ enum OpenWorktreeAction: CaseIterable, Identifiable {
   }
 
   var appIcon: NSImage? {
+    if case .editor = self {
+      return NSImage(systemSymbolName: "apple.terminal", accessibilityDescription: nil)
+    }
     guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier)
     else { return nil }
     return NSWorkspace.shared.icon(forFile: appURL.path)
@@ -97,7 +100,7 @@ enum OpenWorktreeAction: CaseIterable, Identifiable {
   var bundleIdentifier: String {
     switch self {
     case .finder: "com.apple.finder"
-    case .editor: "com.apple.Terminal"
+    case .editor: ""
     case .alacritty: "org.alacritty"
     case .cursor: "com.todesktop.230313mzl4w4u92"
     case .fork: "com.DanPristupov.Fork"
