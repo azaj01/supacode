@@ -78,6 +78,7 @@ struct RepositorySectionView: View {
               .rotationEffect(.degrees(isExpanded ? 90 : 0))
               .frame(maxHeight: .infinity)
               .contentShape(Rectangle())
+              .accessibilityLabel(isExpanded ? "Collapse" : "Expand")
           }
           .buttonStyle(.plain)
           .foregroundStyle(.secondary)
@@ -86,6 +87,7 @@ struct RepositorySectionView: View {
       }
       .onHover { isHovering = $0 }
       .contentShape(.rect)
+      .accessibilityAddTraits(.isButton)
       .onTapGesture {
         toggleExpanded()
       }

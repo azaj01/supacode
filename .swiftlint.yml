@@ -1,3 +1,5 @@
+strict: true
+
 included:
   - supacode
   - supacodeTests

@@ -17,6 +17,16 @@ final class WorktreeTerminalManager {
   }
 
   func handleCommand(_ command: TerminalClient.Command) {
+    if handleTabCommand(command) {
+      return
+    }
+    if handleSearchCommand(command) {
+      return
+    }
+    handleManagementCommand(command)
+  }
+
+  private func handleTabCommand(_ command: TerminalClient.Command) -> Bool {
     switch command {
     case .createTab(let worktree, let runSetupScriptIfNew):
       Task { createTabAsync(in: worktree, runSetupScriptIfNew: runSetupScriptIfNew) }
@@ -35,6 +45,14 @@ final class WorktreeTerminalManager {
       _ = closeFocusedTab(in: worktree)
     case .closeFocusedSurface(let worktree):
       _ = closeFocusedSurface(in: worktree)
+    default:
+      return false
+    }
+    return true
+  }
+
+  private func handleSearchCommand(_ command: TerminalClient.Command) -> Bool {
+    switch command {
     case .startSearch(let worktree):
       state(for: worktree).performBindingActionOnFocusedSurface("start_search")
     case .searchSelection(let worktree):
@@ -45,6 +63,14 @@ final class WorktreeTerminalManager {
       state(for: worktree).performBindingActionOnFocusedSurface("navigate_search:previous")
     case .endSearch(let worktree):
       state(for: worktree).performBindingActionOnFocusedSurface("end_search")
+    default:
+      return false
+    }
+    return true
+  }
+
+  private func handleManagementCommand(_ command: TerminalClient.Command) {
+    switch command {
     case .prune(let ids):
       prune(keeping: ids)
     case .setNotificationsEnabled(let enabled):
@@ -53,6 +79,8 @@ final class WorktreeTerminalManager {
       clearNotificationIndicator(for: worktree)
     case .setSelectedWorktreeID(let id):
       selectedWorktreeID = id
+    default:
+      return
     }
   }
 

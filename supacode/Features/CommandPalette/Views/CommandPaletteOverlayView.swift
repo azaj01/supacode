@@ -18,6 +18,8 @@ struct CommandPaletteOverlayView: View {
             .onTapGesture {
               store.send(.setPresented(false))
             }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel("Dismiss Command Palette")
 
           GeometryReader { geometry in
             VStack {
@@ -85,9 +87,9 @@ struct CommandPaletteOverlayView: View {
   private func moveSelection(_ direction: MoveCommandDirection, rows: [CommandPaletteItem]) {
     switch direction {
     case .up:
-      store.send(.moveSelection(.up, itemsCount: rows.count))
+      store.send(.moveSelection(.upSelection, itemsCount: rows.count))
     case .down:
-      store.send(.moveSelection(.down, itemsCount: rows.count))
+      store.send(.moveSelection(.downSelection, itemsCount: rows.count))
     default:
       break
     }
@@ -376,6 +378,7 @@ private struct CommandPaletteRowView: View {
             .foregroundStyle(emphasis ? .primary : .secondary)
             .font(.system(size: 14, weight: .medium))
             .frame(width: 16, height: 16, alignment: .center)
+            .accessibilityHidden(true)
         }
 
         VStack(alignment: .leading, spacing: 2) {

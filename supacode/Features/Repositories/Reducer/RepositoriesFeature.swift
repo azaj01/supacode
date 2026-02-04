@@ -1638,10 +1638,8 @@ extension RepositoriesFeature.State {
   }
 
   func repositoryID(containing worktreeID: Worktree.ID) -> Repository.ID? {
-    for repository in repositories {
-      if repository.worktrees[id: worktreeID] != nil {
-        return repository.id
-      }
+    for repository in repositories where repository.worktrees[id: worktreeID] != nil {
+      return repository.id
     }
     return nil
   }

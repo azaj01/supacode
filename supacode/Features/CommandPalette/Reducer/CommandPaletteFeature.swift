@@ -11,8 +11,8 @@ struct CommandPaletteFeature {
   }
 
   enum SelectionMove: Equatable {
-    case up
-    case down
+    case upSelection
+    case downSelection
   }
 
   enum Action: BindableAction, Equatable {
@@ -94,13 +94,13 @@ struct CommandPaletteFeature {
         }
         let maxIndex = itemsCount - 1
         switch direction {
-        case .up:
+        case .upSelection:
           if let selectedIndex = state.selectedIndex {
             state.selectedIndex = selectedIndex == 0 ? maxIndex : selectedIndex - 1
           } else {
             state.selectedIndex = maxIndex
           }
-        case .down:
+        case .downSelection:
           if let selectedIndex = state.selectedIndex {
             state.selectedIndex = selectedIndex == maxIndex ? 0 : selectedIndex + 1
           } else {
@@ -559,26 +559,20 @@ private struct CommandPaletteFuzzyScorer {
           queryIndexGtNull && targetIndexGtNull ? mutableMatches[diagIndex] : 0
 
         let score: Int
+        let scoreContext = CharScoreContext(
+          queryChar: queryCharAtIndex,
+          queryLowerChar: queryLowerCharAtIndex,
+          target: target,
+          targetLower: targetLower,
+          targetIndex: targetIndex,
+          matchesSequenceLength: matchesSequenceLength
+        )
         if diagScore != 0 && queryIndexGtNull {
-          score = computeCharScore(
-            queryChar: queryCharAtIndex,
-            queryLowerChar: queryLowerCharAtIndex,
-            target: target,
-            targetLower: targetLower,
-            targetIndex: targetIndex,
-            matchesSequenceLength: matchesSequenceLength
-          )
+          score = computeCharScore(scoreContext)
         } else if queryIndexGtNull {
           score = 0
         } else {
-          score = computeCharScore(
-            queryChar: queryCharAtIndex,
-            queryLowerChar: queryLowerCharAtIndex,
-            target: target,
-            targetLower: targetLower,
-            targetIndex: targetIndex,
-            matchesSequenceLength: matchesSequenceLength
-          )
+          score = computeCharScore(scoreContext)
         }
 
         let isValidScore = score > 0 && diagScore + score >= leftScore
@@ -620,36 +614,38 @@ private struct CommandPaletteFuzzyScorer {
     return (finalScore, positions)
   }
 
-  private func computeCharScore(
-    queryChar: Character,
-    queryLowerChar: Character,
-    target: [Character],
-    targetLower: [Character],
-    targetIndex: Int,
-    matchesSequenceLength: Int
-  ) -> Int {
-    if !considerAsEqual(queryLowerChar, targetLower[targetIndex]) {
+  private struct CharScoreContext {
+    let queryChar: Character
+    let queryLowerChar: Character
+    let target: [Character]
+    let targetLower: [Character]
+    let targetIndex: Int
+    let matchesSequenceLength: Int
+  }
+
+  private func computeCharScore(_ context: CharScoreContext) -> Int {
+    if !considerAsEqual(context.queryLowerChar, context.targetLower[context.targetIndex]) {
       return 0
     }
 
     var score = 1
 
-    if matchesSequenceLength > 0 {
-      score += (min(matchesSequenceLength, 3) * 6)
-      score += max(0, matchesSequenceLength - 3) * 3
+    if context.matchesSequenceLength > 0 {
+      score += (min(context.matchesSequenceLength, 3) * 6)
+      score += max(0, context.matchesSequenceLength - 3) * 3
     }
 
-    if queryChar == target[targetIndex] {
+    if context.queryChar == context.target[context.targetIndex] {
       score += 1
     }
 
-    if targetIndex == 0 {
+    if context.targetIndex == 0 {
       score += 8
     } else {
-      let separatorBonus = scoreSeparatorAtPos(target[targetIndex - 1])
+      let separatorBonus = scoreSeparatorAtPos(context.target[context.targetIndex - 1])
       if separatorBonus > 0 {
         score += separatorBonus
-      } else if isUpper(target[targetIndex]) && matchesSequenceLength == 0 {
+      } else if isUpper(context.target[context.targetIndex]) && context.matchesSequenceLength == 0 {
         score += 2
       }
     }
