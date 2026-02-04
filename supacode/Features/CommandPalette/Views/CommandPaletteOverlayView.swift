@@ -255,6 +255,13 @@ private struct CommandPaletteQuery: View {
         }
         .buttonStyle(PlainButtonStyle())
         .keyboardShortcut(.init("n"), modifiers: [.control])
+        Button {
+          onEvent?(.submit)
+        } label: {
+          Color.clear
+        }
+        .buttonStyle(PlainButtonStyle())
+        .keyboardShortcut(.return, modifiers: [])
       }
       .frame(width: 0, height: 0)
       .accessibilityHidden(true)
