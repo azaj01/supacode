@@ -477,7 +477,6 @@ final class WorktreeTerminalState {
     view.onFocusChange = { [weak self, weak view] focused in
       guard let self, let view, focused else { return }
       self.focusedSurfaceIdByTab[tabId] = view.id
-      self.tabManager.selectTab(tabId)
       self.updateTabTitle(for: tabId)
       self.emitFocusChangedIfNeeded(view.id)
       self.emitTaskStatusIfChanged()
