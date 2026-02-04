@@ -727,7 +727,9 @@ struct RepositoriesFeature {
         if !state.isWorktreeArchived(worktreeID) {
           return .none
         }
-        state.archivedWorktreeIDs.removeAll { $0 == worktreeID }
+        withAnimation {
+          state.archivedWorktreeIDs.removeAll { $0 == worktreeID }
+        }
         let archivedWorktreeIDs = state.archivedWorktreeIDs
         let repositories = state.repositories
         return .merge(

@@ -99,8 +99,11 @@ struct WorktreeRow: View {
         .help("Show pull request checks")
       }
       if let archiveAction, pullRequestState == "MERGED" {
-        Button("Archive") {
+        Button {
           archiveAction()
+        } label: {
+          Image(systemName: "archivebox")
+            .accessibilityLabel("Archive worktree")
         }
         .buttonStyle(.plain)
         .help("Archive Worktree (\(archiveShortcut))")
