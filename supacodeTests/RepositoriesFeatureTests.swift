@@ -656,6 +656,9 @@ struct RepositoriesFeatureTests {
       updatedAt: nil,
       url: "https://example.com/pull/1",
       headRefName: headRefName,
+      baseRefName: "main",
+      commitsCount: 1,
+      authorLogin: "khoi",
       statusCheckRollup: nil
     )
   }

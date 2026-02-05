@@ -1,10 +1,7 @@
 import SwiftUI
 
 struct PullRequestChecksPopoverButton<Label: View>: View {
-  let checks: [GithubPullRequestStatusCheck]
-  let pullRequestURL: URL?
-  let pullRequestTitle: String?
-  let statusTags: [PullRequestStatusTag]
+  let pullRequest: GithubPullRequest
   @ViewBuilder let label: () -> Label
   @State private var isPresented = false
   @State private var isHoveringButton = false
@@ -13,6 +10,8 @@ struct PullRequestChecksPopoverButton<Label: View>: View {
   @Environment(\.openURL) private var openURL
 
   var body: some View {
+    let pullRequestURL = URL(string: pullRequest.url)
+    let checks = pullRequest.statusCheckRollup?.checks ?? []
     Button {
       if let pullRequestURL {
         openURL(pullRequestURL)
@@ -30,10 +29,8 @@ struct PullRequestChecksPopoverButton<Label: View>: View {
     }
     .popover(isPresented: $isPresented) {
       PullRequestChecksPopoverView(
-        checks: checks,
-        pullRequestURL: pullRequestURL,
-        pullRequestTitle: pullRequestTitle,
-        statusTags: statusTags
+        pullRequest: pullRequest,
+        checks: checks
       )
       .onHover { hovering in
         isHoveringPopover = hovering

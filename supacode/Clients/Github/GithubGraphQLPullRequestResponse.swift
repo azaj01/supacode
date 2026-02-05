@@ -84,6 +84,9 @@ nonisolated struct GithubGraphQLPullRequestResponse: Decodable {
     let updatedAt: Date?
     let url: String
     let headRefName: String?
+    let baseRefName: String?
+    let commits: CommitConnection?
+    let author: PullRequestAuthor?
     let statusCheckRollup: GithubPullRequestStatusCheckRollup?
     let headRepository: HeadRepository?
 
@@ -101,6 +104,9 @@ nonisolated struct GithubGraphQLPullRequestResponse: Decodable {
         updatedAt: updatedAt,
         url: url,
         headRefName: headRefName,
+        baseRefName: baseRefName,
+        commitsCount: commits?.totalCount,
+        authorLogin: author?.login,
         statusCheckRollup: statusCheckRollup
       )
     }
@@ -123,6 +129,14 @@ nonisolated struct GithubGraphQLPullRequestResponse: Decodable {
       return headRepository.owner.login.lowercased() == owner
         && headRepository.name.lowercased() == repo
     }
+  }
+
+  nonisolated struct CommitConnection: Decodable {
+    let totalCount: Int
+  }
+
+  nonisolated struct PullRequestAuthor: Decodable {
+    let login: String
   }
 
   nonisolated struct HeadRepository: Decodable {

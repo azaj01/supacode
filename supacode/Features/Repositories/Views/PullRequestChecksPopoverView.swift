@@ -1,25 +1,19 @@
 import SwiftUI
 
 struct PullRequestChecksPopoverView: View {
+  let pullRequest: GithubPullRequest
   let checks: [GithubPullRequestStatusCheck]
-  let pullRequestURL: URL?
-  let pullRequestTitle: String?
-  let statusTags: [PullRequestStatusTag]
   private let breakdown: PullRequestCheckBreakdown
   private let sortedChecks: [GithubPullRequestStatusCheck]
   @Environment(\.analyticsClient) private var analyticsClient
   @Environment(\.openURL) private var openURL
 
   init(
-    checks: [GithubPullRequestStatusCheck],
-    pullRequestURL: URL?,
-    pullRequestTitle: String?,
-    statusTags: [PullRequestStatusTag]
+    pullRequest: GithubPullRequest,
+    checks: [GithubPullRequestStatusCheck]
   ) {
+    self.pullRequest = pullRequest
     self.checks = checks
-    self.pullRequestURL = pullRequestURL
-    self.pullRequestTitle = pullRequestTitle
-    self.statusTags = statusTags
     self.breakdown = PullRequestCheckBreakdown(checks: checks)
     self.sortedChecks = checks.sorted {
       let left = Self.sortRank(for: $0.checkState)
@@ -32,6 +26,33 @@ struct PullRequestChecksPopoverView: View {
   }
 
   var body: some View {
+    let pullRequestURL = URL(string: pullRequest.url)
+    let titleLine =
+      Text(pullRequest.title)
+      + Text(" #\(pullRequest.number)").foregroundStyle(.secondary)
+    let stateLabel = pullRequest.state.uppercased()
+    let draftLabel = pullRequest.isDraft ? "\(stateLabel)/DRAFT" : stateLabel
+    let statusTags = PullRequestStatus.statusTags(
+      reviewDecision: pullRequest.reviewDecision,
+      mergeable: pullRequest.mergeable,
+      mergeStateStatus: pullRequest.mergeStateStatus
+    )
+    let authorLogin = pullRequest.authorLogin ?? "Someone"
+    let commitsCount = pullRequest.commitsCount ?? 0
+    let commitsLabel = commitsCount == 1 ? "commit" : "commits"
+    let baseRefName = pullRequest.baseRefName ?? "base"
+    let headRefName = pullRequest.headRefName ?? "branch"
+    let tagLine = statusTags.reduce(Text(draftLabel).foregroundStyle(.secondary)) { partial, tag in
+      partial + Text(" • ").foregroundStyle(.secondary) + Text(tag.text).foregroundStyle(tag.color)
+    }
+    let summaryLine =
+      tagLine
+      + Text(" - \(authorLogin) wants to merge ").foregroundStyle(.secondary)
+      + Text(commitsCount, format: .number).foregroundStyle(.secondary)
+      + Text(" \(commitsLabel) into `\(baseRefName)` from `\(headRefName)`")
+      .foregroundStyle(.secondary)
+    let additionsText = Text("+") + Text(pullRequest.additions, format: .number)
+    let deletionsText = Text("-") + Text(pullRequest.deletions, format: .number)
     ScrollView {
       VStack(alignment: .leading) {
         if let pullRequestURL {
@@ -39,7 +60,7 @@ struct PullRequestChecksPopoverView: View {
             analyticsClient.capture("github_pr_opened", nil)
             openURL(pullRequestURL)
           } label: {
-            Text("\(pullRequestTitle ?? "Open pull request on GitHub") ↗")
+            titleLine
               .lineLimit(1)
           }
           .buttonStyle(.plain)
@@ -47,20 +68,21 @@ struct PullRequestChecksPopoverView: View {
           .help("Open pull request on GitHub (\(AppShortcuts.openPullRequest.display))")
           .keyboardShortcut(AppShortcuts.openPullRequest.keyboardShortcut)
           .font(.headline)
+        } else {
+          titleLine
+            .lineLimit(1)
+            .font(.headline)
         }
-        if !statusTags.isEmpty {
-          HStack(spacing: 4) {
-            ForEach(Array(statusTags.enumerated()), id: \.offset) { index, tag in
-              Text(tag.text)
-                .foregroundStyle(tag.color)
-              if index != statusTags.count - 1 {
-                Text("•")
-                  .foregroundStyle(.secondary)
-              }
-            }
-          }
-          .font(.caption)
+        summaryLine
+          .font(.subheadline)
+          .lineLimit(1)
+        HStack {
+          additionsText
+            .foregroundStyle(.green)
+          deletionsText
+            .foregroundStyle(.red)
         }
+        .font(.subheadline)
 
         if breakdown.total > 0 {
           HStack {

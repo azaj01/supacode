@@ -533,6 +533,9 @@ private func makePullRequest(
     updatedAt: nil,
     url: "https://example.com/pull/1",
     headRefName: "feature",
+    baseRefName: "main",
+    commitsCount: 1,
+    authorLogin: "khoi",
     statusCheckRollup: checks.isEmpty ? nil : GithubPullRequestStatusCheckRollup(checks: checks)
   )
 }

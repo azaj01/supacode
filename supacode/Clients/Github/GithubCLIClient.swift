@@ -257,6 +257,13 @@ nonisolated private func makeBatchPullRequestsQuery(
           url
           updatedAt
           headRefName
+          baseRefName
+          commits {
+            totalCount
+          }
+          author {
+            login
+          }
           headRepository {
             name
             owner { login }
