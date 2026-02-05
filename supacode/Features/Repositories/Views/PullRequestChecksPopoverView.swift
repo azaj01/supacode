@@ -4,15 +4,22 @@ struct PullRequestChecksPopoverView: View {
   let checks: [GithubPullRequestStatusCheck]
   let pullRequestURL: URL?
   let pullRequestTitle: String?
+  let statusTags: [PullRequestStatusTag]
   private let breakdown: PullRequestCheckBreakdown
   private let sortedChecks: [GithubPullRequestStatusCheck]
   @Environment(\.analyticsClient) private var analyticsClient
   @Environment(\.openURL) private var openURL
 
-  init(checks: [GithubPullRequestStatusCheck], pullRequestURL: URL?, pullRequestTitle: String?) {
+  init(
+    checks: [GithubPullRequestStatusCheck],
+    pullRequestURL: URL?,
+    pullRequestTitle: String?,
+    statusTags: [PullRequestStatusTag]
+  ) {
     self.checks = checks
     self.pullRequestURL = pullRequestURL
     self.pullRequestTitle = pullRequestTitle
+    self.statusTags = statusTags
     self.breakdown = PullRequestCheckBreakdown(checks: checks)
     self.sortedChecks = checks.sorted {
       let left = Self.sortRank(for: $0.checkState)
@@ -40,6 +47,19 @@ struct PullRequestChecksPopoverView: View {
           .help("Open pull request on GitHub (\(AppShortcuts.openPullRequest.display))")
           .keyboardShortcut(AppShortcuts.openPullRequest.keyboardShortcut)
           .font(.headline)
+        }
+        if !statusTags.isEmpty {
+          HStack(spacing: 4) {
+            ForEach(Array(statusTags.enumerated()), id: \.offset) { index, tag in
+              Text(tag.text)
+                .foregroundStyle(tag.color)
+              if index != statusTags.count - 1 {
+                Text("•")
+                  .foregroundStyle(.secondary)
+              }
+            }
+          }
+          .font(.caption)
         }
 
         if breakdown.total > 0 {

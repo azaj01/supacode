@@ -4,6 +4,7 @@ struct PullRequestChecksPopoverButton<Label: View>: View {
   let checks: [GithubPullRequestStatusCheck]
   let pullRequestURL: URL?
   let pullRequestTitle: String?
+  let statusTags: [PullRequestStatusTag]
   @ViewBuilder let label: () -> Label
   @State private var isPresented = false
   @State private var isHoveringButton = false
@@ -31,7 +32,8 @@ struct PullRequestChecksPopoverButton<Label: View>: View {
       PullRequestChecksPopoverView(
         checks: checks,
         pullRequestURL: pullRequestURL,
-        pullRequestTitle: pullRequestTitle
+        pullRequestTitle: pullRequestTitle,
+        statusTags: statusTags
       )
       .onHover { hovering in
         isHoveringPopover = hovering

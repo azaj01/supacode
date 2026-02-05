@@ -20,6 +20,14 @@ struct ArchivedWorktreeRowView: View {
     let pullRequestURL = displayPullRequest.flatMap { URL(string: $0.url) }
     let pullRequestTitle = displayPullRequest?.title
     let pullRequestChecks = displayPullRequest?.statusCheckRollup?.checks ?? []
+    let pullRequestStatusTags =
+      displayPullRequest.map {
+        PullRequestStatus.statusTags(
+          reviewDecision: $0.reviewDecision,
+          mergeable: $0.mergeable,
+          mergeStateStatus: $0.mergeStateStatus
+        )
+      } ?? []
     let pullRequestBadgeStyle = PullRequestBadgeStyle.style(
       state: pullRequestState,
       number: pullRequestNumber
@@ -42,7 +50,8 @@ struct ArchivedWorktreeRowView: View {
           PullRequestChecksPopoverButton(
             checks: pullRequestChecks,
             pullRequestURL: pullRequestURL,
-            pullRequestTitle: pullRequestTitle
+            pullRequestTitle: pullRequestTitle,
+            statusTags: pullRequestStatusTags
           ) {
             let breakdown = PullRequestCheckBreakdown(checks: pullRequestChecks)
             let showsChecksRing = breakdown.total > 0 && pullRequestState != "MERGED"
