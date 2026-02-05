@@ -27,13 +27,29 @@ struct RepositorySectionView: View {
       }
     }
 
-    Group {
-      HStack {
-        RepoHeaderRow(
-          name: repository.name,
-          isRemoving: isRemovingRepository
+    Section {
+      if isExpanded {
+        WorktreeRowsView(
+          repository: repository,
+          isExpanded: isExpanded,
+          store: store,
+          terminalManager: terminalManager
         )
-        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+    } header: {
+      HStack {
+        Button {
+          toggleExpanded()
+        } label: {
+          RepoHeaderRow(
+            name: repository.name,
+            isRemoving: isRemovingRepository
+          )
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .disabled(isRemovingRepository)
         if isRemovingRepository {
           ProgressView()
             .controlSize(.small)
@@ -85,11 +101,6 @@ struct RepositorySectionView: View {
         }
       }
       .onHover { isHovering = $0 }
-      .contentShape(.rect)
-      .tag(SidebarSelection.repository(repository.id))
-      .onTapGesture {
-        toggleExpanded()
-      }
       .contextMenu {
         Button("Repo Settings") {
           openRepoSettings()
@@ -104,15 +115,7 @@ struct RepositorySectionView: View {
       .contentShape(.dragPreview, .rect)
       .environment(\.colorScheme, colorScheme)
       .preferredColorScheme(colorScheme)
-
-      if isExpanded {
-        WorktreeRowsView(
-          repository: repository,
-          isExpanded: isExpanded,
-          store: store,
-          terminalManager: terminalManager
-        )
-      }
+      .listRowInsets(EdgeInsets())
     }
   }
 }
