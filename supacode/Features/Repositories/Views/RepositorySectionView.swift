@@ -8,6 +8,7 @@ struct RepositorySectionView: View {
   let terminalManager: WorktreeTerminalManager
   @Environment(\.colorScheme) private var colorScheme
   @State private var isHovering = false
+  @State private var draggingRepositoryIDs: Set<Repository.ID> = []
 
   var body: some View {
     let state = store.state
@@ -29,6 +30,7 @@ struct RepositorySectionView: View {
     let openRepoSettings = {
       _ = store.send(.openRepositorySettings(repository.id))
     }
+    let isDragging = draggingRepositoryIDs.contains(repository.id)
 
     Section {
       WorktreeRowsView(
@@ -47,11 +49,11 @@ struct RepositorySectionView: View {
             isRemoving: isRemovingRepository
           )
           .frame(maxWidth: .infinity, alignment: .leading)
-          if isRemovingRepository {
+          if isRemovingRepository && !isDragging {
             ProgressView()
               .controlSize(.small)
           }
-          if isHovering {
+          if isHovering && !isDragging {
             Menu {
               Button("Repo Settings") {
                 openRepoSettings()
@@ -90,6 +92,24 @@ struct RepositorySectionView: View {
         .contentShape(.dragPreview, .rect)
         .environment(\.colorScheme, colorScheme)
         .preferredColorScheme(colorScheme)
+        .onDragSessionUpdated { session in
+          let draggedIDs = Set(session.draggedItemIDs(for: Repository.ID.self))
+          if case .ended = session.phase {
+            if !draggingRepositoryIDs.isEmpty {
+              draggingRepositoryIDs = []
+            }
+            return
+          }
+          if case .dataTransferCompleted = session.phase {
+            if !draggingRepositoryIDs.isEmpty {
+              draggingRepositoryIDs = []
+            }
+            return
+          }
+          if draggedIDs != draggingRepositoryIDs {
+            draggingRepositoryIDs = draggedIDs
+          }
+        }
       }
       .onHover { isHovering = $0 }
       .contextMenu {
