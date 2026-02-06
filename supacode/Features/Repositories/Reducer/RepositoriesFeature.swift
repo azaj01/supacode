@@ -1547,7 +1547,23 @@ struct RepositoriesFeature {
                 )
                 return
               }
-              let logs = try await githubCLI.failedRunLogs(worktreeRoot, run.databaseId)
+              let failedLogs = try await githubCLI.failedRunLogs(worktreeRoot, run.databaseId)
+              let logs =
+                if failedLogs.isEmpty {
+                  try await githubCLI.runLogs(worktreeRoot, run.databaseId)
+                } else {
+                  failedLogs
+                }
+              guard !logs.isEmpty else {
+                await send(.dismissToast)
+                await send(
+                  .presentAlert(
+                    title: "No CI logs available",
+                    message: "The workflow run failed but produced no logs."
+                  )
+                )
+                return
+              }
               await MainActor.run {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(logs, forType: .string)

@@ -47,6 +47,7 @@ struct GithubCLIClient {
   var markPullRequestReady: @Sendable (URL, Int) async throws -> Void
   var rerunFailedJobs: @Sendable (URL, Int) async throws -> Void
   var failedRunLogs: @Sendable (URL, Int) async throws -> String
+  var runLogs: @Sendable (URL, Int) async throws -> String
   var isAvailable: @Sendable () async -> Bool
   var authStatus: @Sendable () async throws -> GithubAuthStatus?
 }
@@ -182,6 +183,18 @@ extension GithubCLIClient: DependencyKey {
           repoRoot: repoRoot
         )
       },
+      runLogs: { repoRoot, runID in
+        try await runGh(
+          shell: shell,
+          arguments: [
+            "run",
+            "view",
+            "\(runID)",
+            "--log",
+          ],
+          repoRoot: repoRoot
+        )
+      },
       isAvailable: {
         do {
           _ = try await runGh(shell: shell, arguments: ["--version"], repoRoot: nil)
@@ -216,6 +229,7 @@ extension GithubCLIClient: DependencyKey {
     markPullRequestReady: { _, _ in },
     rerunFailedJobs: { _, _ in },
     failedRunLogs: { _, _ in "" },
+    runLogs: { _, _ in "" },
     isAvailable: { true },
     authStatus: { GithubAuthStatus(username: "testuser", host: "github.com") }
   )
