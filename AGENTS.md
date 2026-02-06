@@ -4,11 +4,20 @@
 make build-ghostty-xcframework  # Rebuild GhosttyKit from Zig source (requires mise)
 make build-app                   # Build macOS app (Debug) via xcodebuild
 make run-app                     # Build and launch Debug app
-make check                        # Run swiftformat and swiftlint
+make check                       # Run swiftformat and swiftlint
 make test                        # Run all tests
 make bump-version                # Bump patch version and create git tag
 make bump-and-release            # Bump version and push to trigger release
 ```
+
+Run a single test class or method:
+```bash
+xcodebuild test -project supacode.xcodeproj -scheme supacode -destination "platform=macOS" \
+  -only-testing:supacodeTests/TerminalTabManagerTests \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" -skipMacroValidation
+```
+
+Requires [mise](https://mise.jdx.dev/) for zig, swiftlint, and xcsift tooling.
 
 ## Architecture
 
@@ -19,7 +28,7 @@ Supacode is a macOS orchestrator for running multiple coding agents in parallel,
 ```
 AppFeature (root TCA store)
 ├─ RepositoriesFeature (repos + worktrees)
-├─ WorktreeInfoFeature (PR/CI status display)
+├─ CommandPaletteFeature
 ├─ SettingsFeature (appearance, updates, repo settings)
 └─ UpdatesFeature (Sparkle auto-updates)
 
@@ -34,38 +43,6 @@ GhosttyRuntime (shared singleton)
     └─ ghostty_surface_t[] (independent terminal sessions)
 ```
 
-### Source Layout
-
-```
-supacode/
-├─ App/                 # Entry point, shortcuts, ContentView
-├─ Domain/              # Core models: Repository, Worktree, OpenWorktreeAction
-├─ Features/
-│  ├─ App/              # AppFeature (root TCA reducer)
-│  ├─ Repositories/     # Sidebar views and RepositoriesFeature reducer
-│  ├─ RepositorySettings/ # Per-repo settings feature
-│  ├─ Settings/         # Global settings views, models, reducer
-│  ├─ Terminal/         # Tab bar, split views, WorktreeTerminalManager
-│  ├─ Updates/          # Sparkle update feature
-│  └─ WorktreeInfo/     # PR/CI status panel
-├─ Clients/             # TCA dependency clients
-│  ├─ Git/              # GitClient (shells out to bundled wt script)
-│  ├─ Github/           # GithubCLIClient (gh CLI wrapper)
-│  ├─ Shell/            # ShellClient for process execution
-│  └─ ...               # Terminal, Workspace, Settings clients
-├─ Infrastructure/
-│  └─ Ghostty/          # Runtime, SurfaceView, SurfaceBridge, ShortcutManager
-├─ Commands/            # macOS menu command handlers
-└─ Support/             # Utilities: SupacodePaths, GlobalConstants
-```
-
-### Key Dependencies
-
-- **TCA (swift-composable-architecture)**: App state, reducers, side effects
-- **GhosttyKit**: Terminal emulator (built from Zig source in ThirdParty/ghostty)
-- **Sparkle**: Auto-update framework
-- **swift-dependencies**: Dependency injection for TCA clients
-
 ### TCA ↔ Terminal Communication
 
 The terminal layer (`WorktreeTerminalManager`) is `@Observable` but outside TCA. Communication uses `TerminalClient`:
@@ -79,6 +56,15 @@ Reducer ← .terminalEvent(Event) ← AsyncStream<Event>
 - **Commands**: `createTab`, `closeFocusedTab`, `prune`, `setSelectedWorktreeID`, etc.
 - **Events**: `notificationReceived`, `tabCreated`, `tabClosed`, `focusChanged`, `taskStatusChanged`
 - Wired in `supacodeApp.swift`, subscribed in `AppFeature.task`
+
+### Key Dependencies
+
+- **TCA (swift-composable-architecture)**: App state, reducers, side effects
+- **GhosttyKit**: Terminal emulator (built from Zig source in ThirdParty/ghostty)
+- **Sparkle**: Auto-update framework
+- **swift-dependencies**: Dependency injection for TCA clients
+- **PostHog**: Analytics
+- **Sentry**: Error tracking
 
 ## Ghostty Keybindings Handling
 
@@ -98,13 +84,20 @@ Always read `./docs/swift-rules.md` before writing Swift code. Key points:
 - Do not use NSNotification to communicate between reducers.
 - Prefer `@Shared` directly in reducers for app storage and shared settings; do not introduce new dependency clients solely to wrap `@Shared`.
 
+### Formatting & Linting
+
+- 2-space indentation, 120 character line length (enforced by `.swift-format.json`)
+- Trailing commas are mandatory (enforced by `.swiftlint.yml`)
+- SwiftLint runs in strict mode; never disable lint rules without permission
+- Custom SwiftLint rule: `store_state_mutation_in_views` — do not mutate `store.*` directly in view files; send actions instead
+
 ## UX Standards
 
 - Buttons must have tooltips explaining the action and associated hotkey
 - Use Dynamic Type, avoid hardcoded font sizes
 - Components should be layout-agnostic (parents control layout, children control appearance)
 - Never use custom colors, always use system provided ones.
-- We use `.monospaced()` modifier on fonts when apprpropriate
+- We use `.monospaced()` modifier on fonts when appropriate
 
 ## Rules
 
@@ -118,9 +111,9 @@ Always read `./docs/swift-rules.md` before writing Swift code. Key points:
 
 ## Ghostty
 
-When following/porting Ghostty logic from their macOS app, try to match the implementation exactly, no smartness, no corner cutting. 
+When following/porting Ghostty logic from their macOS app, try to match the implementation exactly, no smartness, no corner cutting.
 
 ## References
 
 - `git@github.com:ghostty-org/ghostty.git` - Dive into this codebase when implementing Ghostty features
-- `git@github.com:khoi/git-wt.git` - Bundled git worktree wrapper (in Resources/git-wt/wt), modified in the repo directly, do not modified the bundled script we have
+- `git@github.com:khoi/git-wt.git` - Bundled git worktree wrapper (in Resources/git-wt/wt), modified in the repo directly, do not modify the bundled script we have
