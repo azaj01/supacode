@@ -29,24 +29,22 @@ struct PullRequestChecksPopoverView: View {
     let pullRequestURL = URL(string: pullRequest.url)
     let stateLabel = pullRequest.state.uppercased()
     let draftLabel = pullRequest.isDraft ? "\(stateLabel)/DRAFT" : stateLabel
-    let titleLine =
-      Text("\(draftLabel) - ").foregroundStyle(.secondary)
-      + Text(pullRequest.title)
-      + Text(verbatim: " #\(pullRequest.number)").foregroundStyle(.secondary)
+    let titlePrefix = Text("\(draftLabel) - ").foregroundStyle(.secondary)
+    let titleSuffix = Text(verbatim: " #\(pullRequest.number)")
+      .foregroundStyle(.secondary)
+    let titleLine = Text("\(titlePrefix)\(pullRequest.title)\(titleSuffix)")
     let authorLogin = pullRequest.authorLogin ?? "Someone"
     let commitsCount = pullRequest.commitsCount ?? 0
     let commitsLabel = commitsCount == 1 ? "commit" : "commits"
     let baseRefName = pullRequest.baseRefName ?? "base"
     let headRefName = pullRequest.headRefName ?? "branch"
-    let summaryLine =
-      Text("\(authorLogin) wants to merge ").foregroundStyle(.secondary)
-      + Text(commitsCount, format: .number).foregroundStyle(.secondary)
-      + Text(" \(commitsLabel) into ").foregroundStyle(.secondary)
-      + Text("`\(baseRefName)`").foregroundStyle(.secondary).monospaced()
-      + Text(" from ").foregroundStyle(.secondary)
-      + Text("`\(headRefName)`").foregroundStyle(.secondary).monospaced()
-    let additionsText = Text("+") + Text(pullRequest.additions, format: .number)
-    let deletionsText = Text("-") + Text(pullRequest.deletions, format: .number)
+    let baseRef = Text("`\(baseRefName)`").monospaced()
+    let headRef = Text("`\(headRefName)`").monospaced()
+    let summaryLine = Text(
+      "\(authorLogin) wants to merge \(commitsCount, format: .number) \(commitsLabel) into \(baseRef) from \(headRef)"
+    ).foregroundStyle(.secondary)
+    let additionsText = Text("+\(pullRequest.additions, format: .number)")
+    let deletionsText = Text("-\(pullRequest.deletions, format: .number)")
     let hasConflicts = PullRequestStatus.hasConflicts(
       mergeable: pullRequest.mergeable,
       mergeStateStatus: pullRequest.mergeStateStatus
