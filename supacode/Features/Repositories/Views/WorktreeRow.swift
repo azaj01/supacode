@@ -10,6 +10,8 @@ struct WorktreeRow: View {
   let taskStatus: WorktreeTaskStatus?
   let isRunScriptRunning: Bool
   let showsNotificationIndicator: Bool
+  let notifications: [WorktreeTerminalNotification]
+  let onClearNotifications: (() -> Void)?
   let shortcutHint: String?
   let archiveAction: (() -> Void)?
   @Environment(\.colorScheme) private var colorScheme
@@ -41,12 +43,16 @@ struct WorktreeRow: View {
     HStack(alignment: .center) {
       ZStack {
         if showsNotificationIndicator {
-          Image(systemName: "bell.fill")
-            .font(.caption)
-            .foregroundStyle(.orange)
-            .opacity(showsSpinner ? 0 : 1)
-            .help("Unread notifications")
-            .accessibilityLabel("Unread notifications")
+          NotificationPopoverButton(
+            notifications: notifications,
+            onClear: onClearNotifications
+          ) {
+            Image(systemName: "bell.fill")
+              .font(.caption)
+              .foregroundStyle(.orange)
+              .accessibilityLabel("Unread notifications")
+          }
+          .opacity(showsSpinner ? 0 : 1)
         } else {
           Image(systemName: branchIconName)
             .font(.caption)

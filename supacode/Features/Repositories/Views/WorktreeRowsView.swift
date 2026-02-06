@@ -97,9 +97,16 @@ struct WorktreeRowsView: View {
       row.isRemovable && !row.isMainWorktree && !isRepositoryRemoving
       ? { store.send(.requestArchiveWorktree(row.id, repository.id)) }
       : nil
+    let notifications = terminalManager.stateIfExists(for: row.id)?.notifications ?? []
+    let onClearNotifications: (() -> Void)? =
+      showsNotificationIndicator
+      ? { terminalManager.stateIfExists(for: row.id)?.clearNotificationIndicator() }
+      : nil
     let config = WorktreeRowViewConfig(
       displayName: displayName,
       showsNotificationIndicator: showsNotificationIndicator,
+      notifications: notifications,
+      onClearNotifications: onClearNotifications,
       shortcutHint: shortcutHint,
       archiveAction: archiveAction,
       moveDisabled: moveDisabled
@@ -140,6 +147,8 @@ struct WorktreeRowsView: View {
   private struct WorktreeRowViewConfig {
     let displayName: String
     let showsNotificationIndicator: Bool
+    let notifications: [WorktreeTerminalNotification]
+    let onClearNotifications: (() -> Void)?
     let shortcutHint: String?
     let archiveAction: (() -> Void)?
     let moveDisabled: Bool
@@ -158,6 +167,8 @@ struct WorktreeRowsView: View {
       taskStatus: taskStatus,
       isRunScriptRunning: isRunScriptRunning,
       showsNotificationIndicator: config.showsNotificationIndicator,
+      notifications: config.notifications,
+      onClearNotifications: config.onClearNotifications,
       shortcutHint: config.shortcutHint,
       archiveAction: config.archiveAction
     )
