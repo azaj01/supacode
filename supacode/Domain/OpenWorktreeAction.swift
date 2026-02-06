@@ -22,6 +22,7 @@ enum OpenWorktreeAction: CaseIterable, Identifiable {
   case terminal
   case vscode
   case wezterm
+  case windsurf
   case xcode
   case zed
 
@@ -44,6 +45,7 @@ enum OpenWorktreeAction: CaseIterable, Identifiable {
     case .terminal: "Terminal"
     case .vscode: "VS Code"
     case .wezterm: "WezTerm"
+    case .windsurf: "Windsurf"
     case .xcode: "Xcode"
     case .fork: "Fork"
     case .zed: "Zed"
@@ -55,7 +57,7 @@ enum OpenWorktreeAction: CaseIterable, Identifiable {
     case .finder: "Finder"
     case .editor: "$EDITOR"
     case .alacritty, .cursor, .fork, .githubDesktop, .gitkraken, .gitup, .ghostty, .kitty,
-      .smartgit, .sourcetree, .sublimeMerge, .terminal, .vscode, .wezterm, .xcode, .zed:
+      .smartgit, .sourcetree, .sublimeMerge, .terminal, .vscode, .wezterm, .windsurf, .xcode, .zed:
       title
     }
   }
@@ -76,7 +78,7 @@ enum OpenWorktreeAction: CaseIterable, Identifiable {
     case .finder, .editor:
       return true
     case .alacritty, .cursor, .fork, .githubDesktop, .gitkraken, .gitup, .ghostty, .kitty,
-      .smartgit, .sourcetree, .sublimeMerge, .terminal, .vscode, .wezterm, .xcode, .zed:
+      .smartgit, .sourcetree, .sublimeMerge, .terminal, .vscode, .wezterm, .windsurf, .xcode, .zed:
       return NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) != nil
     }
   }
@@ -99,6 +101,7 @@ enum OpenWorktreeAction: CaseIterable, Identifiable {
     case .terminal: "terminal"
     case .vscode: "vscode"
     case .wezterm: "wezterm"
+    case .windsurf: "windsurf"
     case .xcode: "xcode"
     case .zed: "zed"
     }
@@ -122,6 +125,7 @@ enum OpenWorktreeAction: CaseIterable, Identifiable {
     case .terminal: "com.apple.Terminal"
     case .vscode: "com.microsoft.VSCode"
     case .wezterm: "com.github.wez.wezterm"
+    case .windsurf: "com.exafunction.windsurf"
     case .xcode: "com.apple.dt.Xcode"
     case .zed: "dev.zed.Zed"
     }
@@ -129,7 +133,7 @@ enum OpenWorktreeAction: CaseIterable, Identifiable {
 
   nonisolated static let automaticSettingsID = "auto"
 
-  static let editorPriority: [OpenWorktreeAction] = [.cursor, .zed, .vscode]
+  static let editorPriority: [OpenWorktreeAction] = [.cursor, .zed, .vscode, .windsurf]
   static let terminalPriority: [OpenWorktreeAction] = [
     .ghostty,
     .wezterm,
@@ -200,7 +204,7 @@ enum OpenWorktreeAction: CaseIterable, Identifiable {
     case .finder:
       NSWorkspace.shared.activateFileViewerSelecting([worktree.workingDirectory])
     case .alacritty, .cursor, .fork, .githubDesktop, .gitkraken, .gitup, .ghostty, .kitty,
-      .smartgit, .sourcetree, .sublimeMerge, .terminal, .vscode, .wezterm, .xcode, .zed:
+      .smartgit, .sourcetree, .sublimeMerge, .terminal, .vscode, .wezterm, .windsurf, .xcode, .zed:
       guard
         let appURL = NSWorkspace.shared.urlForApplication(
           withBundleIdentifier: bundleIdentifier
