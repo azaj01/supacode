@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ToolbarStatusView: View {
   let toast: RepositoriesFeature.StatusToast?
+  let pullRequest: GithubPullRequest?
 
   var body: some View {
     Group {
@@ -26,8 +27,13 @@ struct ToolbarStatusView: View {
         }
         .transition(.opacity)
       case nil:
-        MotivationalStatusView()
-          .transition(.opacity)
+        if let model = PullRequestStatusModel(pullRequest: pullRequest) {
+          PullRequestStatusButton(model: model)
+            .transition(.opacity)
+        } else {
+          MotivationalStatusView()
+            .transition(.opacity)
+        }
       }
     }
     .animation(.easeInOut(duration: 0.2), value: toast)
