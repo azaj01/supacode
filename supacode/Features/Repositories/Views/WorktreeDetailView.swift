@@ -53,8 +53,17 @@ struct WorktreeDetailView: View {
     .toolbar(removing: .title)
     .toolbar {
       if hasActiveWorktree, let selectedWorktree {
+        let pullRequest = repositories.worktreeInfo(for: selectedWorktree.id)?.pullRequest
+        let matchesBranch =
+          if let pullRequest {
+            pullRequest.headRefName == nil || pullRequest.headRefName == selectedWorktree.name
+          } else {
+            false
+          }
         let toolbarState = WorktreeToolbarState(
           branchName: selectedWorktree.name,
+          statusToast: repositories.statusToast,
+          pullRequest: matchesBranch ? pullRequest : nil,
           openActionSelection: openActionSelection,
           showExtras: commandKeyObserver.isPressed,
           runScriptEnabled: runScriptEnabled,
@@ -145,6 +154,8 @@ struct WorktreeDetailView: View {
 
   fileprivate struct WorktreeToolbarState {
     let branchName: String
+    let statusToast: RepositoriesFeature.StatusToast?
+    let pullRequest: GithubPullRequest?
     let openActionSelection: OpenWorktreeAction
     let showExtras: Bool
     let runScriptEnabled: Bool
@@ -174,6 +185,13 @@ struct WorktreeDetailView: View {
           branchName: toolbarState.branchName,
           onSubmit: onRenameBranch
         )
+      }
+
+      ToolbarSpacer(.flexible)
+
+      ToolbarItemGroup {
+        ToolbarStatusView(toast: toolbarState.statusToast, pullRequest: toolbarState.pullRequest)
+          .padding(.horizontal)
       }
 
       ToolbarSpacer(.flexible)
@@ -352,6 +370,8 @@ private struct WorktreeToolbarPreview: View {
   init() {
     toolbarState = WorktreeDetailView.WorktreeToolbarState(
       branchName: "feature/toolbar-preview",
+      statusToast: nil,
+      pullRequest: nil,
       openActionSelection: .finder,
       showExtras: false,
       runScriptEnabled: true,

@@ -10,16 +10,20 @@ import Testing
 struct CommandPaletteFeatureTests {
   @Test func commandPaletteItems_onlyGlobalWhenEmpty() {
     let items = CommandPaletteFeature.commandPaletteItems(from: RepositoriesFeature.State())
-    expectNoDifference(
-      items.map(\.id),
-      [
-        "global.check-for-updates",
-        "global.open-settings",
-        "global.open-repository",
-        "global.new-worktree",
-        "global.refresh-worktrees",
-      ]
-    )
+    var expectedIDs = [
+      "global.check-for-updates",
+      "global.open-settings",
+      "global.open-repository",
+      "global.new-worktree",
+      "global.refresh-worktrees",
+    ]
+    #if DEBUG
+      expectedIDs.append(contentsOf: [
+        "debug.toast.inProgress",
+        "debug.toast.success",
+      ])
+    #endif
+    expectNoDifference(items.map(\.id), expectedIDs)
   }
 
   @Test func commandPaletteItems_skipsPendingAndDeletingWorktrees() {
