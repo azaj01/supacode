@@ -214,7 +214,8 @@ struct WorktreeDetailView: View {
       }
 
       if !toolbarState.notificationGroups.isEmpty {
-        ToolbarItem {
+        ToolbarSpacer(.fixed)
+        ToolbarItemGroup {
           ToolbarNotificationsPopoverButton(
             groups: toolbarState.notificationGroups,
             unseenWorktreeCount: toolbarState.unseenNotificationWorktreeCount,
