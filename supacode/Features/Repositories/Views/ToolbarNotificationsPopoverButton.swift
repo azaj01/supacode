@@ -3,7 +3,8 @@ import SwiftUI
 struct ToolbarNotificationsPopoverButton: View {
   let groups: [ToolbarNotificationRepositoryGroup]
   let unseenWorktreeCount: Int
-  let onSelectNotification: (Worktree.ID, UUID) -> Void
+  let onSelectNotification: (Worktree.ID, WorktreeTerminalNotification) -> Void
+  let onDismissAll: () -> Void
   @State private var isPresented = false
   @State private var isPinnedOpen = false
   @State private var isHoveringButton = false
@@ -36,10 +37,17 @@ struct ToolbarNotificationsPopoverButton: View {
       updatePresentation()
     }
     .popover(isPresented: $isPresented) {
-      ToolbarNotificationsPopoverView(groups: groups) { worktreeID, surfaceID in
-        onSelectNotification(worktreeID, surfaceID)
-        closePopover()
-      }
+      ToolbarNotificationsPopoverView(
+        groups: groups,
+        onSelectNotification: { worktreeID, notification in
+          onSelectNotification(worktreeID, notification)
+          closePopover()
+        },
+        onDismissAll: {
+          onDismissAll()
+          closePopover()
+        }
+      )
       .onHover { hovering in
         isHoveringPopover = hovering
         updatePresentation()

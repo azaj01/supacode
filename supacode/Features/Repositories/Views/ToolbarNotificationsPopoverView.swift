@@ -2,7 +2,8 @@ import SwiftUI
 
 struct ToolbarNotificationsPopoverView: View {
   let groups: [ToolbarNotificationRepositoryGroup]
-  let onSelectNotification: (Worktree.ID, UUID) -> Void
+  let onSelectNotification: (Worktree.ID, WorktreeTerminalNotification) -> Void
+  let onDismissAll: () -> Void
 
   var body: some View {
     let notificationCount = groups.reduce(0) { count, repository in
@@ -12,11 +13,22 @@ struct ToolbarNotificationsPopoverView: View {
 
     ScrollView {
       VStack(alignment: .leading, spacing: 12) {
-        Text("Notifications")
-          .font(.headline)
-        Text("\(notificationCount) \(notificationLabel)")
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
+        HStack {
+          VStack(alignment: .leading, spacing: 2) {
+            Text("Notifications")
+              .font(.headline)
+            Text("\(notificationCount) \(notificationLabel)")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+          }
+          Spacer()
+          Button("Dismiss All") {
+            onDismissAll()
+          }
+          .buttonStyle(.plain)
+          .disabled(notificationCount == 0)
+          .help("Dismiss all notifications")
+        }
 
         ForEach(groups) { repository in
           VStack(alignment: .leading, spacing: 8) {
@@ -38,7 +50,7 @@ struct ToolbarNotificationsPopoverView: View {
                 }
                 ForEach(worktree.notifications) { notification in
                   Button {
-                    onSelectNotification(worktree.id, notification.surfaceId)
+                    onSelectNotification(worktree.id, notification)
                   } label: {
                     HStack(alignment: .top, spacing: 8) {
                       Image(systemName: "bell")

@@ -90,13 +90,8 @@ struct WorktreeDetailView: View {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(selectedWorktree.workingDirectory.path, forType: .string)
           },
-          onSelectNotification: { worktreeID, surfaceID in
-            store.send(.repositories(.selectWorktree(worktreeID)))
-            terminalManager.stateIfExists(for: worktreeID)?.focusSurface(id: surfaceID)
-            if let worktree = repositories.worktree(for: worktreeID) {
-              terminalManager.clearNotificationIndicator(for: worktree)
-            }
-          },
+          onSelectNotification: selectToolbarNotification,
+          onDismissAllNotifications: { dismissAllToolbarNotifications(in: notificationGroups) },
           onRunScript: { store.send(.runScript) },
           onStopRunScript: { store.send(.stopRunScript) }
         )
@@ -151,6 +146,25 @@ struct WorktreeDetailView: View {
     )
   }
 
+  private func selectToolbarNotification(
+    _ worktreeID: Worktree.ID,
+    _ notification: WorktreeTerminalNotification
+  ) {
+    store.send(.repositories(.selectWorktree(worktreeID)))
+    if let terminalState = terminalManager.stateIfExists(for: worktreeID) {
+      _ = terminalState.focusSurface(id: notification.surfaceId)
+      terminalState.dismissNotification(notification.id)
+    }
+  }
+
+  private func dismissAllToolbarNotifications(in groups: [ToolbarNotificationRepositoryGroup]) {
+    for repositoryGroup in groups {
+      for worktreeGroup in repositoryGroup.worktrees {
+        terminalManager.stateIfExists(for: worktreeGroup.id)?.dismissAllNotifications()
+      }
+    }
+  }
+
   private struct FocusedActions {
     let openSelectedWorktree: (() -> Void)?
     let newTerminal: (() -> Void)?
@@ -191,7 +205,8 @@ struct WorktreeDetailView: View {
     let onOpenWorktree: (OpenWorktreeAction) -> Void
     let onOpenActionSelectionChanged: (OpenWorktreeAction) -> Void
     let onCopyPath: () -> Void
-    let onSelectNotification: (Worktree.ID, UUID) -> Void
+    let onSelectNotification: (Worktree.ID, WorktreeTerminalNotification) -> Void
+    let onDismissAllNotifications: () -> Void
     let onRunScript: () -> Void
     let onStopRunScript: () -> Void
 
@@ -219,7 +234,8 @@ struct WorktreeDetailView: View {
           ToolbarNotificationsPopoverButton(
             groups: toolbarState.notificationGroups,
             unseenWorktreeCount: toolbarState.unseenNotificationWorktreeCount,
-            onSelectNotification: onSelectNotification
+            onSelectNotification: onSelectNotification,
+            onDismissAll: onDismissAllNotifications
           )
         }
       }
@@ -427,6 +443,7 @@ private struct WorktreeToolbarPreview: View {
         onOpenActionSelectionChanged: { _ in },
         onCopyPath: {},
         onSelectNotification: { _, _ in },
+        onDismissAllNotifications: {},
         onRunScript: {},
         onStopRunScript: {}
       )

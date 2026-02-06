@@ -414,6 +414,16 @@ final class WorktreeTerminalState {
     }
   }
 
+  func dismissNotification(_ notificationID: WorktreeTerminalNotification.ID) {
+    notifications.removeAll { $0.id == notificationID }
+    clearNotificationIndicator()
+  }
+
+  func dismissAllNotifications() {
+    notifications.removeAll()
+    clearNotificationIndicator()
+  }
+
   func needsSetupScript() -> Bool {
     pendingSetupScript
   }
