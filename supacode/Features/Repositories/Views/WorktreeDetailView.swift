@@ -53,10 +53,17 @@ struct WorktreeDetailView: View {
     .toolbar(removing: .title)
     .toolbar {
       if hasActiveWorktree, let selectedWorktree {
+        let pullRequest = repositories.worktreeInfo(for: selectedWorktree.id)?.pullRequest
+        let matchesBranch =
+          if let pullRequest {
+            pullRequest.headRefName == nil || pullRequest.headRefName == selectedWorktree.name
+          } else {
+            false
+          }
         let toolbarState = WorktreeToolbarState(
           branchName: selectedWorktree.name,
           statusToast: repositories.statusToast,
-          pullRequest: repositories.worktreeInfo(for: selectedWorktree.id)?.pullRequest,
+          pullRequest: matchesBranch ? pullRequest : nil,
           openActionSelection: openActionSelection,
           showExtras: commandKeyObserver.isPressed,
           runScriptEnabled: runScriptEnabled,

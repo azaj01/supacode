@@ -8,7 +8,9 @@ import SwiftUI
 private enum CancelID {
   static let load = "repositories.load"
   static let toastAutoDismiss = "repositories.toastAutoDismiss"
-  static let delayedPRRefresh = "repositories.delayedPRRefresh"
+  static func delayedPRRefresh(_ worktreeID: Worktree.ID) -> String {
+    "repositories.delayedPRRefresh.\(worktreeID)"
+  }
 }
 
 @Reducer
@@ -1172,7 +1174,7 @@ struct RepositoriesFeature {
             )
           )
         }
-        .cancellable(id: CancelID.delayedPRRefresh, cancelInFlight: true)
+        .cancellable(id: CancelID.delayedPRRefresh(worktreeID), cancelInFlight: true)
 
       case .worktreeNotificationReceived(let worktreeID):
         guard let repositoryID = state.repositoryID(containing: worktreeID),
