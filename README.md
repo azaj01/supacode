@@ -23,6 +23,3 @@ make test      # Run tests
 make format    # Run swift-format
 ```
 
-## License
-
-Proprietary
