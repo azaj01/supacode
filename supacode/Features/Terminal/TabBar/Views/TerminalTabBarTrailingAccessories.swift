@@ -43,7 +43,7 @@ struct TerminalTabBarTrailingAccessories: View {
     }
     .popover(
       isPresented: $isHoverPopoverPresented,
-      attachmentAnchor: .rect(.bounds),
+      attachmentAnchor: .point(.bottom),
       arrowEdge: .top
     ) {
       hoverPopoverContent
