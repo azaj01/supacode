@@ -24,6 +24,7 @@ struct RepositorySettingsView: View {
               Image(systemName: "chevron.up.chevron.down")
                 .foregroundStyle(.secondary)
                 .font(.caption)
+                .accessibilityHidden(true)
             }
             .contentShape(Rectangle())
           }
@@ -172,6 +173,7 @@ private struct BranchPickerPopover: View {
             if selection == nil {
               Image(systemName: "checkmark")
                 .foregroundStyle(.tint)
+                .accessibilityHidden(true)
             }
           }
           .padding(.vertical, 6)
@@ -186,6 +188,7 @@ private struct BranchPickerPopover: View {
               if selection == ref {
                 Image(systemName: "checkmark")
                   .foregroundStyle(.tint)
+                  .accessibilityHidden(true)
               }
             }
             .padding(.vertical, 6)
