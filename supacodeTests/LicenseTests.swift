@@ -207,6 +207,15 @@ struct LicenseTests {
     #expect(stored.value.trialCreations == 5)
   }
 
+  @Test func teamEntitlementsRequireTheTeamProtocolVersion() async throws {
+    let signingKey = Curve25519.Signing.PrivateKey()
+    let token = try Self.token(signingKey: signingKey, team: true, lease: 2, version: 1)
+    let stored = LockIsolated(LicenseRecord(key: Self.key, token: token))
+    let session = Self.session(
+      stored: stored, publicKey: signingKey.publicKey.rawRepresentation)
+    #expect(try await session.load().entitlement == nil)
+  }
+
   @Test func aNewerUnownedReleaseRequiresActivationOrRenewal() async throws {
     let signingKey = Curve25519.Signing.PrivateKey()
     let token = try Self.token(signingKey: signingKey, updatesThrough: "2026-08-01")
@@ -219,6 +228,51 @@ struct LicenseTests {
     await #expect(throws: LicenseError.licenseRequired) {
       try await session.authorizeCreation(resource: nil)
     }
+  }
+
+  @Test func expiredTeamSeatRequiresAnOnlineRefresh() async throws {
+    let signingKey = Curve25519.Signing.PrivateKey()
+    let token = try Self.token(signingKey: signingKey, team: true, lease: 2)
+    let stored = LockIsolated(LicenseRecord(key: Self.key, token: token, trialCreations: 5))
+    let session = Self.session(
+      stored: stored, publicKey: signingKey.publicKey.rawRepresentation,
+      releaseDay: LicenseDay("2026-10-10")
+    )
+    let snapshot = try await session.load()
+    #expect(snapshot.entitlement?.isTeam == true)
+    #expect(!snapshot.hasUsableActiveEntitlement)
+    await #expect(throws: LicenseError.teamLeaseExpired) {
+      try await session.authorizeCreation(resource: nil)
+    }
+  }
+
+  @Test func currentTeamSeatCanCreateWithoutUsingTrialAllowance() async throws {
+    let signingKey = Curve25519.Signing.PrivateKey()
+    let token = try Self.token(
+      signingKey: signingKey, team: true,
+      lease: Int64(Date().timeIntervalSince1970) + 86_400
+    )
+    let stored = LockIsolated(LicenseRecord(key: Self.key, token: token, trialCreations: 5))
+    let session = Self.session(
+      stored: stored, publicKey: signingKey.publicKey.rawRepresentation,
+      releaseDay: LicenseDay("2026-10-10")
+    )
+    #expect(try await session.load().hasUsableActiveEntitlement)
+    let permit = try await session.authorizeCreation(resource: nil)
+    _ = try await session.completeCreation(permit)
+    #expect(stored.value.trialCreations == 5)
+  }
+
+  @Test func developmentBuildIgnoresExpiredTeamLease() async throws {
+    let signingKey = Curve25519.Signing.PrivateKey()
+    let token = try Self.token(signingKey: signingKey, team: true, lease: 2)
+    let stored = LockIsolated(LicenseRecord(key: Self.key, token: token, trialCreations: 5))
+    let session = Self.session(
+      stored: stored, publicKey: signingKey.publicKey.rawRepresentation, isEnforced: false)
+    _ = try await session.load()
+    let permit = try await session.authorizeCreation(resource: nil)
+    _ = try await session.completeCreation(permit)
+    #expect(stored.value.trialCreations == 5)
   }
 
   @Test func verifiesTheDeviceAndRejectsAlteredTokens() throws {
@@ -303,7 +357,8 @@ struct LicenseTests {
       }
       $0[LicenseClient.self].claimCreationResource = { permit, resource, directory in
         licenseCalls.withValue { $0 += 1 }
-        try await session.claimCreationResource(permit, resource: resource, localDirectory: directory)
+        try await session.claimCreationResource(
+          permit, resource: resource, localDirectory: directory)
       }
       $0[LicenseClient.self].completeCreation = { permit in
         licenseCalls.withValue { $0 += 1 }
@@ -319,7 +374,8 @@ struct LicenseTests {
         let command = arguments.last ?? ""
         commands.withValue { $0.append(command) }
         if creationFails, command.contains("worktree"), command.contains("add") {
-          throw ShellClientError(command: command, stdout: "", stderr: "Remote creation failed", exitCode: 1)
+          throw ShellClientError(
+            command: command, stdout: "", stderr: "Remote creation failed", exitCode: 1)
         }
         return ShellOutput(stdout: "", stderr: "", exitCode: 0)
       }
@@ -332,7 +388,8 @@ struct LicenseTests {
         placement: WorktreePlacementOverride(path: "/home/me/worktrees"), pendingID: pendingID))
     if creationFails {
       let error = GitClientError.commandFailed(
-        command: "/usr/bin/env git -C /home/me/repo worktree add /home/me/worktrees/feature/ -b feature HEAD",
+        command:
+          "/usr/bin/env git -C /home/me/repo worktree add /home/me/worktrees/feature/ -b feature HEAD",
         message: "stderr:\nRemote creation failed")
       await store.receive(\.worktreeCreationRejected) {
         $0.alert = AlertState {
@@ -348,7 +405,10 @@ struct LicenseTests {
       await store.receive(\.loadPersistedRepositories)
     }
     await store.finish()
-    #expect(commands.value.contains { $0.contains("worktree") && $0.contains("/home/me/worktrees/feature") })
+    #expect(
+      commands.value.contains {
+        $0.contains("worktree") && $0.contains("/home/me/worktrees/feature")
+      })
     #expect(licenseCalls.value == 0)
     #expect(stored.value.trialCreations == trialCreations)
     #expect(stored.value.pendingWorktreePaths == nil)
@@ -364,23 +424,31 @@ struct LicenseTests {
   private nonisolated static func session(
     stored: LockIsolated<LicenseRecord>,
     publicKey: Data = Data(base64Encoded: LicenseBuild.publicKey)!,
-    releaseDay: LicenseDay? = LicenseDay("2026-10-10")
+    releaseDay: LicenseDay? = LicenseDay("2026-10-10"),
+    isEnforced: Bool = true
   ) -> LicenseSession {
     LicenseSession(
       persistence: LicensePersistence(
         load: { stored.value }, save: { updated in stored.withValue { $0 = updated } }),
-      device: Self.device, publicKey: publicKey, releaseDay: releaseDay, isEnforced: true,
+      device: Self.device, publicKey: publicKey, releaseDay: releaseDay, isEnforced: isEnforced,
       request: { _, _, _ in throw LicenseError.service("Offline") }
     )
   }
 
   private nonisolated static func token(
-    signingKey: Curve25519.Signing.PrivateKey, updatesThrough: String = "2027-10-10"
+    signingKey: Curve25519.Signing.PrivateKey, updatesThrough: String = "2027-10-10",
+    team: Bool = false, lease: Int64? = nil, version: Int? = nil
   ) throws -> String {
-    let payload = try JSONSerialization.data(withJSONObject: [
-      "v": 1, "lid": String(repeating: "0", count: 32), "did": Self.device.id,
+    var claims: [String: Any] = [
+      "v": version ?? (team ? 2 : 1), "lid": String(repeating: "0", count: 32),
+      "did": Self.device.id,
       "status": "active", "upd": updatesThrough, "rev": 1, "iat": 1,
-    ])
+    ]
+    if team {
+      claims["team"] = true
+      claims["lease"] = lease
+    }
+    let payload = try JSONSerialization.data(withJSONObject: claims)
     let signature = try signingKey.signature(for: payload)
     return Self.base64URL(payload) + "." + Self.base64URL(signature)
   }
