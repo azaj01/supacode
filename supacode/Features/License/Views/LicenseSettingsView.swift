@@ -8,9 +8,11 @@ struct LicenseSettingsView: View {
     Form {
       if store.snapshot.entitlement?.status == .active {
         Section {
-          if !store.snapshot.hasUsableActiveEntitlement {
-            Text("This Team seat needs an online refresh before it can create more worktrees.")
-          }
+          Text(
+            "Owned versions work offline. Transfers and refunds apply after this Mac next refreshes its license."
+          )
+          .font(.caption)
+          .foregroundStyle(.secondary)
           Button("Deactivate This Mac") { store.send(.deactivate) }
             .disabled(store.isBusy)
             .help("Deactivate this Mac so you can activate your license on another Mac.")

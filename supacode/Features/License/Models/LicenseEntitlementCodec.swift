@@ -11,12 +11,10 @@ nonisolated struct LicenseEntitlementCodec: Sendable {
     let rev: Int
     let iat: Int64
     let reason: String?
-    let team: Bool?
-    let lease: Int64?
 
     enum CodingKeys: String, CodingKey {
       case version = "v"
-      case lid, did, status, upd, rev, iat, reason, team, lease
+      case lid, did, status, upd, rev, iat, reason
     }
   }
 
@@ -39,8 +37,7 @@ nonisolated struct LicenseEntitlementCodec: Sendable {
       signature.count == 64,
       publicKey.isValidSignature(signature, for: payload),
       let claims = try? JSONDecoder().decode(Claims.self, from: payload),
-      (claims.version == 1 && claims.team != true && claims.lease == nil)
-        || (claims.version == 2 && claims.team == true),
+      claims.version == 1 || claims.version == 2,
       claims.did == expectedDeviceID,
       claims.lid == expectedLicenseID,
       claims.rev >= 0,
@@ -55,22 +52,18 @@ nonisolated struct LicenseEntitlementCodec: Sendable {
       updatesThrough: claims.upd,
       revision: claims.rev,
       issuedAt: claims.iat,
-      revocationReason: claims.reason,
-      isTeam: claims.team == true,
-      teamLeaseUntil: claims.lease
+      revocationReason: claims.reason
     )
   }
 
   private func validClaims(_ claims: Claims) -> Bool {
-    guard claims.team != false else { return false }
     switch claims.status {
     case .active:
-      guard claims.upd != nil, claims.reason == nil else { return false }
-      return claims.team != true || (claims.lease ?? 0) >= claims.iat
+      return claims.upd != nil && claims.reason == nil
     case .revoked:
-      return claims.upd == nil && claims.reason?.isEmpty == false && claims.lease == nil
+      return claims.upd == nil && claims.reason?.isEmpty == false
     case .deactivated, .transferred:
-      return claims.upd == nil && claims.reason == nil && claims.lease == nil
+      return claims.upd == nil && claims.reason == nil
     }
   }
 
