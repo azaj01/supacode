@@ -207,15 +207,6 @@ struct LicenseTests {
     #expect(stored.value.trialCreations == 5)
   }
 
-  @Test func teamEntitlementsRequireTheTeamProtocolVersion() async throws {
-    let signingKey = Curve25519.Signing.PrivateKey()
-    let token = try Self.token(signingKey: signingKey, team: true, lease: 2, version: 1)
-    let stored = LockIsolated(LicenseRecord(key: Self.key, token: token))
-    let session = Self.session(
-      stored: stored, publicKey: signingKey.publicKey.rawRepresentation)
-    #expect(try await session.load().entitlement == nil)
-  }
-
   @Test func aNewerUnownedReleaseRequiresActivationOrRenewal() async throws {
     let signingKey = Curve25519.Signing.PrivateKey()
     let token = try Self.token(signingKey: signingKey, updatesThrough: "2026-08-01")
@@ -230,49 +221,60 @@ struct LicenseTests {
     }
   }
 
-  @Test func expiredTeamSeatRequiresAnOnlineRefresh() async throws {
+  @Test(arguments: [false, true])
+  func legacyTeamTokensRetainOwnedReleaseAccessOffline(hasLease: Bool) async throws {
     let signingKey = Curve25519.Signing.PrivateKey()
-    let token = try Self.token(signingKey: signingKey, team: true, lease: 2)
+    let token = try Self.token(
+      signingKey: signingKey, updatesThrough: "2020-01-01", team: true,
+      lease: hasLease ? 2 : nil
+    )
     let stored = LockIsolated(LicenseRecord(key: Self.key, token: token, trialCreations: 5))
     let session = Self.session(
       stored: stored, publicKey: signingKey.publicKey.rawRepresentation,
-      releaseDay: LicenseDay("2026-10-10")
+      releaseDay: LicenseDay("2019-12-31")
     )
-    let snapshot = try await session.load()
-    #expect(snapshot.entitlement?.isTeam == true)
-    #expect(!snapshot.hasUsableActiveEntitlement)
-    await #expect(throws: LicenseError.teamLeaseExpired) {
+    await #expect(throws: LicenseError.service("Offline")) { try await session.refresh() }
+    #expect(try await session.load().ownsCurrentRelease)
+    let permit = try await session.authorizeCreation(resource: nil)
+    _ = try await session.completeCreation(permit)
+    #expect(stored.value.trialCreations == 5)
+  }
+
+  @Test func legacyTeamTokenDoesNotOwnNewerReleases() async throws {
+    let signingKey = Curve25519.Signing.PrivateKey()
+    let token = try Self.token(
+      signingKey: signingKey, updatesThrough: "2020-01-01", team: true, lease: 2)
+    let stored = LockIsolated(LicenseRecord(key: Self.key, token: token, trialCreations: 5))
+    let session = Self.session(
+      stored: stored, publicKey: signingKey.publicKey.rawRepresentation,
+      releaseDay: LicenseDay("2020-01-02")
+    )
+    #expect(try await !session.load().ownsCurrentRelease)
+    await #expect(throws: LicenseError.licenseRequired) {
       try await session.authorizeCreation(resource: nil)
     }
   }
 
-  @Test func currentTeamSeatCanCreateWithoutUsingTrialAllowance() async throws {
+  @Test(arguments: ["revoked", "transferred", "deactivated"])
+  func cachedTeamAccessEndsAfterASuccessfulServerRefresh(status: String) async throws {
     let signingKey = Curve25519.Signing.PrivateKey()
-    let token = try Self.token(
-      signingKey: signingKey, team: true,
-      lease: Int64(Date().timeIntervalSince1970) + 86_400
+    let cached = try Self.token(signingKey: signingKey, team: true, lease: 2)
+    let updated = try Self.token(signingKey: signingKey, status: status, revision: 2)
+    let stored = LockIsolated(LicenseRecord(key: Self.key, token: cached, trialCreations: 5))
+    let session = LicenseSession(
+      persistence: LicensePersistence(
+        load: { stored.value }, save: { updated in stored.withValue { $0 = updated } }),
+      device: Self.device, publicKey: signingKey.publicKey.rawRepresentation,
+      releaseDay: LicenseDay("2026-10-10"), isEnforced: true,
+      request: { _, _, _ in updated }
     )
-    let stored = LockIsolated(LicenseRecord(key: Self.key, token: token, trialCreations: 5))
-    let session = Self.session(
-      stored: stored, publicKey: signingKey.publicKey.rawRepresentation,
-      releaseDay: LicenseDay("2026-10-10")
-    )
-    #expect(try await session.load().hasUsableActiveEntitlement)
-    let permit = try await session.authorizeCreation(resource: nil)
-    _ = try await session.completeCreation(permit)
-    #expect(stored.value.trialCreations == 5)
-  }
-
-  @Test func developmentBuildIgnoresExpiredTeamLease() async throws {
-    let signingKey = Curve25519.Signing.PrivateKey()
-    let token = try Self.token(signingKey: signingKey, team: true, lease: 2)
-    let stored = LockIsolated(LicenseRecord(key: Self.key, token: token, trialCreations: 5))
-    let session = Self.session(
-      stored: stored, publicKey: signingKey.publicKey.rawRepresentation, isEnforced: false)
-    _ = try await session.load()
-    let permit = try await session.authorizeCreation(resource: nil)
-    _ = try await session.completeCreation(permit)
-    #expect(stored.value.trialCreations == 5)
+    #expect(try await session.load().ownsCurrentRelease)
+    let refreshed = try await session.refresh()
+    #expect(refreshed.entitlement?.status.rawValue == status)
+    #expect(!refreshed.ownsCurrentRelease)
+    await #expect(throws: LicenseError.licenseRequired) {
+      try await session.authorizeCreation(resource: nil)
+    }
   }
 
   @Test func verifiesTheDeviceAndRejectsAlteredTokens() throws {
@@ -437,13 +439,16 @@ struct LicenseTests {
 
   private nonisolated static func token(
     signingKey: Curve25519.Signing.PrivateKey, updatesThrough: String = "2027-10-10",
-    team: Bool = false, lease: Int64? = nil, version: Int? = nil
+    team: Bool = false, lease: Int64? = nil,
+    status: String = "active", revision: Int = 1
   ) throws -> String {
     var claims: [String: Any] = [
-      "v": version ?? (team ? 2 : 1), "lid": String(repeating: "0", count: 32),
+      "v": team ? 2 : 1, "lid": String(repeating: "0", count: 32),
       "did": Self.device.id,
-      "status": "active", "upd": updatesThrough, "rev": 1, "iat": 1,
+      "status": status, "rev": revision, "iat": 1,
     ]
+    if status == "active" { claims["upd"] = updatesThrough }
+    if status == "revoked" { claims["reason"] = "refund" }
     if team {
       claims["team"] = true
       claims["lease"] = lease

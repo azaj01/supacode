@@ -15,10 +15,4 @@ nonisolated struct LicenseEntitlement: Equatable, Sendable {
   let revision: Int
   let issuedAt: Int64
   let revocationReason: String?
-  let isTeam: Bool
-  let teamLeaseUntil: Int64?
-
-  var teamLeaseValid: Bool {
-    !isTeam || (teamLeaseUntil ?? 0) > Int64(Date().timeIntervalSince1970)
-  }
 }
