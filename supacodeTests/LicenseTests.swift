@@ -263,6 +263,18 @@ struct LicenseTests {
     #expect(stored.value.trialCreations == 5)
   }
 
+  @Test func developmentBuildIgnoresExpiredTeamLease() async throws {
+    let signingKey = Curve25519.Signing.PrivateKey()
+    let token = try Self.token(signingKey: signingKey, team: true, lease: 2)
+    let stored = LockIsolated(LicenseRecord(key: Self.key, token: token, trialCreations: 5))
+    let session = Self.session(
+      stored: stored, publicKey: signingKey.publicKey.rawRepresentation, isEnforced: false)
+    _ = try await session.load()
+    let permit = try await session.authorizeCreation(resource: nil)
+    _ = try await session.completeCreation(permit)
+    #expect(stored.value.trialCreations == 5)
+  }
+
   @Test func verifiesTheDeviceAndRejectsAlteredTokens() throws {
     let signingKey = Curve25519.Signing.PrivateKey()
     let token = try Self.token(signingKey: signingKey)
@@ -412,12 +424,13 @@ struct LicenseTests {
   private nonisolated static func session(
     stored: LockIsolated<LicenseRecord>,
     publicKey: Data = Data(base64Encoded: LicenseBuild.publicKey)!,
-    releaseDay: LicenseDay? = LicenseDay("2026-10-10")
+    releaseDay: LicenseDay? = LicenseDay("2026-10-10"),
+    isEnforced: Bool = true
   ) -> LicenseSession {
     LicenseSession(
       persistence: LicensePersistence(
         load: { stored.value }, save: { updated in stored.withValue { $0 = updated } }),
-      device: Self.device, publicKey: publicKey, releaseDay: releaseDay, isEnforced: true,
+      device: Self.device, publicKey: publicKey, releaseDay: releaseDay, isEnforced: isEnforced,
       request: { _, _, _ in throw LicenseError.service("Offline") }
     )
   }
