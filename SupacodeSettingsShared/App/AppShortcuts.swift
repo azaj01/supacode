@@ -26,6 +26,27 @@ public nonisolated enum AppShortcutID: Codable, Hashable, Sendable, CodingKeyRep
   case togglePullRequestInspector, toggleFilesInspector, toggleNotificationsInspector
   case startSearch, findNext, findPrevious, useSelectionForFind
 
+  // False for sidebar-only actions; their chords stay with the terminal (⌘⌫ deletes the line).
+  public var isReachableFromTerminal: Bool {
+    switch self {
+    case .archiveWorktree, .deleteWorktree:
+      false
+    case .commandPalette, .worktreeSwitcher, .openSettings, .checkForUpdates, .showMainWindow,
+      .toggleLeftSidebar, .revealInSidebar, .expandAllSidebarGroups, .collapseAllSidebarGroups,
+      .newWorktree, .refreshWorktrees, .archivedWorktrees, .confirmWorktreeAction,
+      .selectNextWorktree, .selectPreviousWorktree, .worktreeHistoryBack, .worktreeHistoryForward,
+      .selectWorktree, .selectTab, .selectNextTab, .selectPreviousTab,
+      .openWorktree, .revealInFinder, .openRepository, .addRemoteRepository, .cloneRepository,
+      .openPullRequest, .copyPath, .runScript, .stopRunScript, .renameTab, .toggleWindowMode,
+      .newTerminalTab, .closeTab, .splitRight, .splitLeft, .splitDown, .splitUp,
+      .focusSplitLeft, .focusSplitRight, .focusSplitUp, .focusSplitDown,
+      .toggleSplitZoom, .equalizeSplits, .jumpToLatestUnread,
+      .togglePullRequestInspector, .toggleFilesInspector, .toggleNotificationsInspector,
+      .startSearch, .findNext, .findPrevious, .useSelectionForFind:
+      true
+    }
+  }
+
   // Stable string key for JSON dictionary persistence.
   public var codingKey: CodingKey {
     StringCodingKey(stableKey)
@@ -692,14 +713,14 @@ public enum AppShortcuts {
 
   // MARK: - Ghostty keybind config.
 
-  // `keybind = X=unbind` config lines releasing every effective chord from the
-  // terminal. Shipped as a config file because on macOS Ghostty reads CLI args
+  // `keybind = X=unbind` config lines releasing every terminal-reachable chord
+  // from the terminal. Shipped as a config file because on macOS Ghostty reads CLI args
   // from `NSProcessInfo`, never from `ghostty_init`'s argv.
   public static func ghosttyKeybindConfigLines(
     from overrides: [AppShortcutID: AppShortcutOverride]
   ) -> [String] {
     all.compactMap { shortcut in
-      guard let effective = shortcut.effective(from: overrides) else { return nil }
+      guard shortcut.id.isReachableFromTerminal, let effective = shortcut.effective(from: overrides) else { return nil }
       guard let line = effective.ghosttyUnbindConfigLine else {
         shortcutLogger.error("No Ghostty key name for \(effective.displayName); the terminal keeps this chord.")
         return nil
@@ -708,11 +729,26 @@ public enum AppShortcuts {
     }
   }
 
+  // True when `event` matches only sidebar-only shortcuts, so a focused terminal keeps the chord.
+  public static func isTerminalUnreachableChord(
+    _ event: NSEvent,
+    overrides: [AppShortcutID: AppShortcutOverride]
+  ) -> Bool {
+    var matchedAny = false
+    for shortcut in all {
+      guard let effective = shortcut.effective(from: overrides), effective.matches(event) else { continue }
+      guard !shortcut.id.isReachableFromTerminal else { return false }
+      matchedAny = true
+    }
+    return matchedAny
+  }
+
   // MARK: - Conflict detection.
 
-  // Computes conflict warnings for all shortcuts given the current overrides.
+  // Conflict warnings against system hotkeys, built-in menu chords and other shortcuts.
   public static func conflictWarnings(
-    from overrides: [AppShortcutID: AppShortcutOverride]
+    from overrides: [AppShortcutID: AppShortcutOverride],
+    menuReserved: [String: String] = [:]
   ) -> [AppShortcutID: String] {
     let reserved = AppShortcutOverride.allReservedDisplayStrings()
     var displayToIDs: [String: [AppShortcutID]] = [:]
@@ -725,6 +761,8 @@ public enum AppShortcuts {
 
       if reserved.contains(display) {
         warnings[shortcut.id] = "\(display) is reserved by the system."
+      } else if let builtIn = menuReserved[display] {
+        warnings[shortcut.id] = "\(display) is used by \(builtIn)."
       }
     }
 
